@@ -5,6 +5,9 @@ import config from '../../../config';
 import { USER_ROLES } from '../../../enums/user';
 import ApiError from '../../../errors/ApiError';
 import { IUser, UserModal } from './user.interface';
+import cryptoToken from '../../../util/cryptoToken';
+import { googleHelper } from '../../../helpers/googleMapHelper';
+import { kafkaProducer } from '../../../tools/kafka/kafka-producers/kafka.producer';
 
 const userSchema = new Schema<IUser, UserModal>(
   {
@@ -33,6 +36,10 @@ const userSchema = new Schema<IUser, UserModal>(
       type: String,
       default: 'https://i.ibb.co/z5YHLV9/profile.png',
     },
+    isSocialLogin: {
+      type: Boolean,
+      default: false,
+    },
     status: {
       type: String,
       enum: ['active', 'delete'],
@@ -41,6 +48,37 @@ const userSchema = new Schema<IUser, UserModal>(
     verified: {
       type: Boolean,
       default: false,
+    },
+    app_id: {
+      type: String,
+      default: '',
+    },
+    user_type: {
+      type: String,
+      default: '',
+    },
+    interested_categories: {
+      type: [String],
+      default: [],
+    },
+    refereralCode: {
+      type: String,
+      default: '',
+    },
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number],
+        default: [0, 0],
+      },
+    },
+    refarralLink: {
+      type: String,
+      default: '',
     },
     authentication: {
       type: {
@@ -59,9 +97,30 @@ const userSchema = new Schema<IUser, UserModal>(
       },
       select: 0,
     },
+    subscription: {
+      type: Schema.Types.ObjectId,
+      ref: 'Subscription',
+      default: null,
+    },
+    intrestedPlaces:[String],
+    searchItems:[String],
+    address: {
+      type:String
+    },
+    date_of_birth: {
+      type:Date
+    },
+    gender: {
+      type:String
+    },
+    bio: {
+      type:String
+    }
   },
   { timestamps: true }
 );
+
+userSchema.index({location: '2dsphere'});
 
 //exist user check
 userSchema.statics.isExistUserById = async (id: string) => {
@@ -82,12 +141,38 @@ userSchema.statics.isMatchPassword = async (
   return await bcrypt.compare(password, hashPassword);
 };
 
+userSchema.statics.updateIntrestOfUser = async (userId: string, places?:string[], searchItems?:string[],) => {
+  const userDetails = await User.findOne({ _id: userId });
+  if (!userDetails) return [];
+  if(userDetails.intrestedPlaces?.includes(places?.[0]!)) return []
+  const user = await User.findOneAndUpdate(
+    { _id: userId },
+    { $addToSet: { intrestedPlaces: places, searchItems: searchItems } },
+    { new: true }
+  );
+  const cityName = await googleHelper.getCountryShortAndLongName(
+        user?.location?.coordinates?.[1]!,
+        user?.location?.coordinates?.[0]!
+      );
+  
+      await kafkaProducer.sendMessage('hotel-in-preference', {
+        userId: user?._id,
+        userAddress: { city: cityName.city, country: cityName.country },
+      });
+  return user
+  
+}
+
 //check user
 userSchema.pre('save', async function (next) {
   //check user
   const isExist = await User.findOne({ email: this.email });
   if (isExist) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'Email already exist!');
+  }
+
+  if(![USER_ROLES.ADMIN, USER_ROLES.SUPER_ADMIN].includes(this.role)){
+    this.refereralCode=cryptoToken()
   }
 
   //password hash

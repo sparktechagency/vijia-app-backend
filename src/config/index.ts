@@ -27,4 +27,22 @@ export default {
     secret_key: process.env.STRIPE_API_SECRET,
     webhook_secret: process.env.WEBHOOK_SECRET,
   },
+  amadeus: {
+    api_key: process.env.AMADEUS_API_KEY,
+    api_secret: process.env.AMADEUS_API_SECRET,
+    base_url: process.env.AMADEUS_BASE_URL,
+  },
+  google: {
+    api_key: process.env.GOOGLE_MAPS_API_KEY,
+  },
+  gemini: {
+    key: process.env.GEMINI_API_KEY,
+  },
+
+  openAi:{
+    key: process.env.OPENAI_API_KEY
+  },
+  apple: {
+    password: process.env.APPLE_PASSWORD,
+  },
 };

@@ -9,7 +9,7 @@ const router = express.Router();
 
 router
   .route('/profile')
-  .get(auth(USER_ROLES.ADMIN, USER_ROLES.USER), UserController.getUserProfile)
+  .get(auth(USER_ROLES.ADMIN, USER_ROLES.USER, USER_ROLES.SUPER_ADMIN), UserController.getUserProfile)
   .patch(
     auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
     fileUploadHandler(),
@@ -28,6 +28,14 @@ router
   .post(
     validateRequest(UserValidation.createUserZodSchema),
     UserController.createUser
+  );
+
+router
+  .route('/delete-account')
+  .delete(
+    auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
+    validateRequest(UserValidation.accountDeleteZodSchema),
+    UserController.deleteAccount
   );
 
 export const UserRoutes = router;

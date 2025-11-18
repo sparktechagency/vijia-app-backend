@@ -36,5 +36,10 @@ router.post(
   validateRequest(AuthValidation.createChangePasswordZodSchema),
   AuthController.changePassword
 );
+router.post(
+  '/social-sign-in',
+  validateRequest(AuthValidation.createSocialSignInZodSchema),
+  AuthController.socialSignIn
+);
 
 export const AuthRoutes = router;

@@ -8,6 +8,8 @@ import unlinkFile from '../../../shared/unlinkFile';
 import generateOTP from '../../../util/generateOTP';
 import { IUser } from './user.interface';
 import { User } from './user.model';
+import { amaduesHelper } from '../../../helpers/AmaduesHelper';
+import { googleHelper } from '../../../helpers/googleMapHelper';
 
 const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   //set role
@@ -49,7 +51,11 @@ const getUserProfileFromDB = async (
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
   }
 
-  return isExistUser;
+  // const hotelslist = await amaduesHelper.getHotelsList("PAR")
+  // const getHotelsOffers = await amaduesHelper.getHotelsOffers([hotelslist.data[0].hotelId])
+  // bd lat long
+
+  return isExistUser
 };
 
 const updateProfileToDB = async (
@@ -74,8 +80,35 @@ const updateProfileToDB = async (
   return updateDoc;
 };
 
+const deleteAccountFromDB = async (user: JwtPayload,password:string) => {
+  const { id } = user;
+  const isExistUser = await User.findOne({ _id: id }).select('+password');
+
+  if(isExistUser?.status === 'delete'){
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      'You don’t have permission to access this content.It looks like your account has been deactivated.'
+    );
+  }
+  if (!isExistUser) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+  }
+
+  const isMatch = await User.isMatchPassword(password, isExistUser.password);
+  if (!isMatch) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Password is incorrect');
+  }
+
+  await User.findOneAndUpdate({ _id: id }, { $set: { status: 'delete' } });
+  return isExistUser
+};
+
 export const UserService = {
   createUserToDB,
   getUserProfileFromDB,
   updateProfileToDB,
+  deleteAccountFromDB
 };
+
+
+

@@ -26,7 +26,7 @@ export type IHomeItem = {
   isDiscounted: boolean;
   discountPercentage: number;
   discountAmount: number;
-  tags: typeof tags,
+  tags:keyof typeof tags,
   bookingLink: string;
   startDate: string;
   endDate: string;

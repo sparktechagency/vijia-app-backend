@@ -104,7 +104,7 @@ const homeItemSchema = new Schema<IHomeItem, HomeItemModel>({
     required: false,
   },
   tags: {
-    type: [String],
+    type: String,
     required: false,
   },
   priceGiving: {

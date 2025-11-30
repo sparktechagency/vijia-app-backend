@@ -31,4 +31,13 @@ const favoriteSchema = new Schema<IFavorite, FavoriteModel>({
 
 favoriteSchema.index({ refId: 1 }, { unique: true });
 
+favoriteSchema.statics.isExistFavorite = async (refId: string) => {
+  
+  const isExist = await Favorite.findOne({ refId });
+
+  return isExist;
+}
+
 export const Favorite = model<IFavorite, FavoriteModel>('Favorite', favoriteSchema);
+
+

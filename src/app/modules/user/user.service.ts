@@ -10,6 +10,8 @@ import { IUser } from './user.interface';
 import { User } from './user.model';
 import { amaduesHelper } from '../../../helpers/AmaduesHelper';
 import { googleHelper } from '../../../helpers/googleMapHelper';
+import { Subscription } from '../subscription/subscription.model';
+import { IPackage } from '../package/package.interface';
 
 const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   //set role
@@ -46,16 +48,25 @@ const getUserProfileFromDB = async (
   user: JwtPayload
 ): Promise<Partial<IUser>> => {
   const { id } = user;
-  const isExistUser = await User.isExistUserById(id);
+  let isExistUser = await User.isExistUserById(id);
   if (!isExistUser) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
   }
+
+  const subscription = await Subscription.findOne({ user: id, status: 'active' }).populate('package')?.lean()
+
+  
+  const subscriptionName = subscription?(subscription?.package as any as IPackage)?.name:'Free Plan'
+
 
   // const hotelslist = await amaduesHelper.getHotelsList("PAR")
   // const getHotelsOffers = await amaduesHelper.getHotelsOffers([hotelslist.data[0].hotelId])
   // bd lat long
 
-  return isExistUser
+  return {
+    ...isExistUser?.toObject(),
+    subscription:subscriptionName
+  }
 };
 
 const updateProfileToDB = async (

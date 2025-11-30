@@ -9,4 +9,6 @@ export type IFavorite = {
   data: any;
 };
 
-export type FavoriteModel = Model<IFavorite>;
+export type FavoriteModel = Model<IFavorite> & {
+  isExistFavorite(refId: string): Promise<IFavorite | null>;
+}

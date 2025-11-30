@@ -23,6 +23,7 @@ import { getRendomPhoto } from '../../../helpers/photoHelper';
 import { FlightServices } from '../flight/flight.service';
 import { FlightCardData } from '../flight/flight.helpers';
 import { calculateDistance } from '../../../helpers/locationHelper';
+import { Favorite } from '../favorite/favorite.model';
 
 const getHotelsFromApis = async (
   query: Record<string, any>,
@@ -71,14 +72,22 @@ const getHotelsFromApis = async (
       .filter(['lat', 'lng'])
       .search(['name', 'city', 'country', 'description']);
     let [data, pagination] = await Promise.all([
-      preferenceQuery.modelQuery.exec(),
+      preferenceQuery.modelQuery.lean(),
       preferenceQuery.getPaginationInfo(),
     ]);
 
 
 
     const response = {
-      data: data,
+      data: await Promise.all(
+        data.map(async (hotel:any) => {
+          const isExistFavorite = await Favorite.isExistFavorite(hotel.referenceId);
+          return {
+            ...hotel,
+            isFavorite: isExistFavorite ? true : false,
+          };
+        })
+      ),
       pagination,
     };
 
@@ -121,6 +130,7 @@ const getHotelsFromApis = async (
         city: address?.city?.long_name,
         lat: activity.geoCode.latitude,
         lng: activity.geoCode.longitude,
+        isFavorite: false
       };
     });
 

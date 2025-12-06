@@ -56,10 +56,12 @@ const fileUploadHandler = () => {
   //file filter
   const filterFilter = (req: Request, file: any, cb: FileFilterCallback) => {
     if (file.fieldname === 'image') {
+      
       if (
         file.mimetype === 'image/jpeg' ||
         file.mimetype === 'image/png' ||
-        file.mimetype === 'image/jpg'
+        file.mimetype === 'image/jpg' ||
+        file.mimetype === 'image/webp'
       ) {
         cb(null, true);
       } else {
@@ -71,7 +73,7 @@ const fileUploadHandler = () => {
         );
       }
     } else if (file.fieldname === 'media') {
-      if (file.mimetype === 'video/mp4' || file.mimetype === 'audio/mpeg') {
+      if (file.mimetype === 'video/mp4' || file.mimetype === 'audio/mpeg' || file.mimetype === 'audio/mp3' || file.mimetype === 'audio/wav') {
         cb(null, true);
       } else {
         cb(

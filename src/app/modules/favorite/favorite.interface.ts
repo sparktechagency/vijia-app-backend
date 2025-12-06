@@ -1,7 +1,7 @@
 import { Model, Types } from 'mongoose';
 
 export type IFavorite = {
-  refId: string;
+  referenceId: string;
   type: string;
   name: string;
   image ?: string;

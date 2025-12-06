@@ -81,6 +81,10 @@ export interface GooglePlaceResult {
   formatted_address: string
   photos?: GooglePlacePhoto[]
   rating?: number
+  opening_hours?: GooglePlacesOpeningHours
+  vicinity?: string,
+  international_phone_number?: string,
+  geometry: GooglePlacesGeometry
 }
 
 export interface GooglePlaceDetailsResponse {

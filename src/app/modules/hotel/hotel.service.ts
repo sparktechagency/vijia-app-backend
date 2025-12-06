@@ -19,7 +19,7 @@ import { convertToFareSummary, priceFilteringHotel } from './hotel.helper';
 import { HotelOrderResponse } from '../../../types/bookFlight';
 import { BookingRecord } from './hotel.model';
 import { INotification } from '../notification/notification.interface';
-import { getRendomPhoto } from '../../../helpers/photoHelper';
+import { getImagesFromApi, getRendomPhoto } from '../../../helpers/photoHelper';
 import { FlightServices } from '../flight/flight.service';
 import { FlightCardData } from '../flight/flight.helpers';
 import { calculateDistance } from '../../../helpers/locationHelper';
@@ -205,11 +205,11 @@ const getActiviesForHome = async (
 };
 
 const singleHomeDetails = async (id: string, query: Record<string, any>,user:JwtPayload) => {
-    const cache = await RedisHelper.redisGet(`home:${id}`, query);
-    if (cache) {
-      console.log('Cache hit');
-      return cache;
-    }
+    // const cache = await RedisHelper.redisGet(`home:${id}`, query);
+    // if (cache) {
+    //   console.log('Cache hit');
+    //   return cache;
+    // }
   const type = query.type;
   const dbExist = await HomeItem.findOne({ referenceId: id }).lean();
 
@@ -245,6 +245,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
   if (type == 'hotel') {
     const hotel = await amaduesHelper.getHotelsDetails([id]);
     const hotellOffer = await amaduesHelper.getHotelsOffers([id]);
+    
     const hotelDetails = hotel?.data?.[0];
     const distance = await googleHelper.getDistance(
       hotelDetails?.geoCode?.latitude,
@@ -258,6 +259,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
     );
     const restrudentsAmount = restrudents?.length;
     const cheapestOffer = hotellOffer?.data?.[0]?.offers?.sort((a: any, b: any) => a.price.total - b.price.total);
+
 
     
     const currentOffer = cheapestOffer?.[0];
@@ -282,11 +284,9 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
       type: 'hotel',
       referenceId: id,
       name: hotelDetails.name,
-      images: (hotelDetails as any)?.images || [
-        'https://eaglematinsurance.co.uk/wp-content/uploads/2024/08/Leisure-and-Hospitality-Insurance.jpg',
-      ],
+      images: (hotelDetails as any)?.images ||await getImagesFromApi(hotelDetails?.name),
       description:
-        (hotelDetails as any)?.description ||
+        currentOffer?.room?.description?.text ||
         'A luxurious 5-star hotel located in the heart of Dhaka, offering premium rooms, fine dining, and a rooftop infinity pool.',
       price: price || 0,
       currency: currency || '',
@@ -384,6 +384,13 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
     console.log('Cache hit');
     return cache;
   }
+      if(query?.address){
+          const latLong = await googleHelper.getLatLongFromAddress(query.address as string);
+          if(latLong.lat && latLong.lng){
+              query.lat = latLong.lat
+              query.lng = latLong.lng
+          }
+      }
     const cityInfo = await googleHelper.getCountryShortAndLongName(query.lat,query.lng);
  
 
@@ -429,6 +436,7 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
         month: 'short',
         year: 'numeric',
       })
+      const isFavorite = await Favorite.isExistFavorite(hotel.hotelId)
       const data = {
         type: 'hotel',
         referenceId: hotel.hotelId,
@@ -449,7 +457,8 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
         city: hotel.address.cityName,
         lat: hotel.geoCode.latitude,
         lng: hotel.geoCode.longitude,
-        rating: (hotel as any)?.rating || 0
+        rating: (hotel as any)?.rating || 0,
+        isFavorite:isFavorite? true : false
       }
       return data
     }))
@@ -461,6 +470,11 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
   const data = {
     data: mapData,
     pagination: paginatieArray.pagination
+  }
+
+  if(query.address){
+    delete query.lat
+    delete query.lng
   }
 
   await RedisHelper.redisSet(`hotels`,data,query,60);
@@ -601,11 +615,11 @@ const discoverPlaces = async (query:Record<string,any>,user:JwtPayload)=>{
     const hotels = (await amaduesHelper.getHotelGeoCode(lat+"",lng+"")).data
     const mapData = hotels.map(async (hotel)=>{
       const offer = (await amaduesHelper.getHotelsOffers([hotel.hotelId])).data
-      const data:IDiscoverPlace = {
+      const data = {
         title:hotel.name,
         type:"hotel",
-        tag:tags[Math.floor(Math.random() * tags.length)],
-        image:(hotel as any).pictures?.[0] || await getRendomPhoto(`hotel in ${hotel.address.cityName}`),
+        tags:tags[Math.floor(Math.random() * tags.length)],
+        images:(hotel as any).pictures || await getImagesFromApi(`${hotel.address.cityName}`),
         referenceId:hotel.hotelId,
         lat:hotel.geoCode.latitude,
         lng:hotel.geoCode.longitude,
@@ -624,11 +638,11 @@ const discoverPlaces = async (query:Record<string,any>,user:JwtPayload)=>{
     const restrudents = await googleHelper.getRestrudentUsingGeoCode(lat,lng)
     const mapData = restrudents.map(async (restrudent)=>{
 
-      const data:IDiscoverPlace = {
+      const data = {
         title:restrudent.name,
         type:"restaurant",
-        tag:tags[Math.floor(Math.random() * tags.length)],
-        image:restrudent.photos?.[0]?.photo_reference ?await googleHelper.getPhoto(restrudent.photos?.[0]?.photo_reference!): await getRendomPhoto(`restaurant in ${restrudent.formatted_address}`),
+        tags:tags[Math.floor(Math.random() * tags.length)],
+        images:restrudent.photos?.[0]?.photo_reference ?await googleHelper.getMultiplePhoto([restrudent.photos?.[0]]): await getImagesFromApi(`${restrudent.formatted_address}`),
         referenceId:restrudent.place_id,
         lat:restrudent.geometry.location.lat,
         lng:restrudent.geometry.location.lng,
@@ -660,8 +674,8 @@ const discoverPlaces = async (query:Record<string,any>,user:JwtPayload)=>{
       const data = {
         title:`${flight.fromCity} to ${flight.toCity}`,
         type:"flight",
-        tag:tags[Math.floor(Math.random() * tags.length)],
-        image:"https://wallpapercave.com/wp/wp4128800.jpg",
+        tags:tags[Math.floor(Math.random() * tags.length)],
+        images:["https://wallpapercave.com/wp/wp4128800.jpg"],
         referenceId:flight.flightNumber,
         price:flight.price,
         currency:flight.currency,

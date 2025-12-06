@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import { IFavorite, FavoriteModel } from './favorite.interface'; 
 
 const favoriteSchema = new Schema<IFavorite, FavoriteModel>({
-  refId: {
+  referenceId: {
     type: String,
     required: true,
   },
@@ -29,11 +29,11 @@ const favoriteSchema = new Schema<IFavorite, FavoriteModel>({
   },
 });
 
-favoriteSchema.index({ refId: 1 }, { unique: true });
+favoriteSchema.index({ referenceId: 1 }, { unique: true });
 
 favoriteSchema.statics.isExistFavorite = async (refId: string) => {
   
-  const isExist = await Favorite.findOne({ refId });
+  const isExist = await Favorite.findOne({ referenceId: refId });
 
   return isExist;
 }

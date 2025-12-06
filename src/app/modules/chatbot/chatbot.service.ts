@@ -15,23 +15,28 @@ import { Server } from 'socket.io';
 import QueryBuilder from '../../builder/QueryBuilder';
 import { amaduesHelper } from '../../../helpers/AmaduesHelper';
 import { convertHotelIntoHomeItem } from './chatbot.helper';
-const  generateAiResponse = async (user:JwtPayload,prompt?:string) => {
+import { openAiFileUpload } from '../../../helpers/openAIUpload';
+const  generateAiResponse = async (user:JwtPayload,prompt?:string,audio?:string) => {
     const io = (global as any).io as Server
+    const fileId = await openAiFileUpload(audio!);
+
+    
     const userInfo = await User.findOne({ _id: user.id });
     const [lng, lat] = userInfo?.location?.coordinates || [116.4074, 39.9046];
-    const excitingMMessage = await Chatbot.find({ user: user.id }).sort({ createdAt: -1 }).limit(5).lean().exec();
+    const excitingMMessage = await Chatbot.find({ user: user.id,createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } }).sort({ createdAt: -1 }).limit(5).lean().exec();
     const countyAndTheCity = await googleHelper.getCountryAndCityDetailsUsingGeoCode(lat,lng);
     await kafkaProducer.sendMessage('create-chatbot', {
         user: user.id,
-        message: prompt,
-        sender: 'user'
+        message: prompt||fileId,
+        sender: 'user',
+        voice: audio||''
     })
     io.emit('get-chatbot::'+user.id, { message: prompt, sender: 'user',user: user.id });
     const response = await chatbot.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
             { role: "system", content: "You are a travel recommendation engine. Return only valid JSON." },
-            { role: "user", content: getaddressFromTheAi(`${prompt} and my current location is ${encode(countyAndTheCity)} and my previous messages are ${encode(excitingMMessage)}`) }
+            {role:"user",content:getaddressFromTheAi(`${prompt ||fileId} and my current location is ${encode(countyAndTheCity)} and my previous messages are ${encode(excitingMMessage)}`)}
         ]
     })
 
@@ -48,7 +53,6 @@ const  generateAiResponse = async (user:JwtPayload,prompt?:string) => {
     
     const json:AddressType = JSON.parse(jsonFormat!)
 
-    console.log(json);
     
     
     if(Object.values(json.data??{}).some(data=>data.length>0)){

@@ -13,6 +13,17 @@ const getAllRestrudents = catchAsync(async (req: Request, res: Response, next: N
     });
 })
 
+const getSingleRestrudent = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
+    const restrudent = await RestrudentServices.getSingleRestrudent(req.params.id);
+    sendResponse(res, {
+        success: true,
+        statusCode: 200,
+        message: 'Restrudent retrieved successfully',
+        data: restrudent,
+    });
+})
+
 export const RestrudentController = {
-    getAllRestrudents
+    getAllRestrudents,
+    getSingleRestrudent
 };

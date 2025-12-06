@@ -20,9 +20,9 @@ const markAllNotificationsAsRead = async (user: JwtPayload) => {
 const userObjectId = new Types.ObjectId(user.id)
   const result = await Notification.updateMany(
     { isRead: false, receiver: {
-      $in: [userObjectId]
+      $in: [user.id]
     } },
-    { $set: { isRead: true,$push: { readers: userObjectId } } },
+    { $set: {$push: { readers: user.id } } },
   );
   return result;
 };
@@ -36,7 +36,7 @@ const allNotificationFromDB = async (
   const userObjectId = new Types.ObjectId(user.id);
 
   const initialQuery = Notification.find({ receiver:{
-    $in: [userObjectId]
+    $in: [user.id]
   } });
 
   const result = new QueryBuilder(initialQuery, query)
@@ -44,9 +44,8 @@ const allNotificationFromDB = async (
     .paginate();
 
   let unreadCount = await Notification.countDocuments({
-    isRead: false,
     readers: {
-      $nin: [userObjectId]
+      $nin: [user.id]
     },
   });
 

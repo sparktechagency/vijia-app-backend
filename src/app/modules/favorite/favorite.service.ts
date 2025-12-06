@@ -4,9 +4,9 @@ import { Favorite } from './favorite.model';
 import QueryBuilder from '../../builder/QueryBuilder';
 
 const createFavarite = async (data: IFavorite, user:JwtPayload) => {
-    const isExist = await Favorite.findOne({ refId: data.refId, user: user.id });
+    const isExist = await Favorite.findOne({ referenceId: data.referenceId, user: user.id });
     if (isExist) {
-        await Favorite.findOneAndDelete({ refId: data.refId });
+        await Favorite.findOneAndDelete({ referenceId: data.referenceId });
         return {
             message: 'Removed from favorite',
             success: true,

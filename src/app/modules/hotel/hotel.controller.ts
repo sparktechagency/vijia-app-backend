@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import catchAsync from "../../../shared/catchAsync";
 import { HotelService } from "./hotel.service";
 import sendResponse from "../../../shared/sendResponse";
+import { googleHelper } from "../../../helpers/googleMapHelper";
 
 const getHotelList = catchAsync(async (req:Request,res:Response) => {
     const hotelList = await HotelService.getHotelsFromApis(req.query,req.user);
@@ -36,6 +37,7 @@ const getSingleDetails = catchAsync(async (req:Request,res:Response) => {
 })
 
 const searchHotelsByLocation = catchAsync(async (req:Request,res:Response) => {
+
     const activites = await HotelService.getHotelsListFromApis(req.query,req.user);
     sendResponse(res, {
         success: true,

@@ -22,7 +22,7 @@ class GoogleHelper {
  
     
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=restaurant&key=${
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=restaurant&fields=photos,name,formatted_address,international_phone_number,website,rating,opening_hours,vicinity&key=${
         this.apiKey
       }${pageToken ? `&pagetoken=${pageToken}` : ''}`
     );
@@ -33,9 +33,9 @@ class GoogleHelper {
 
   async getPlaceDetailsWithPlaceId(
     placeId: string
-  ): Promise<GooglePlaceDetailsResponse> {
+  ): Promise<GooglePlaceDetailsResponse['result']> {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,international_phone_number,website,rating,photo&key=${this.apiKey}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_address,international_phone_number,website,rating,photo,opening_hours,vicinity,geometry&key=${this.apiKey}`
     );
     const data = await response.json();
     return data.result;

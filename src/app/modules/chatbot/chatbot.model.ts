@@ -19,6 +19,11 @@ const chatbotSchema = new Schema<IChatbot, ChatbotModel>({
     enum: ['user', 'ai'],
     required: true,
   },
+  voice: {
+    type: String
+  }
+},{
+  timestamps: true
 });
 
 export const Chatbot = model<IChatbot, ChatbotModel>('Chatbot', chatbotSchema);

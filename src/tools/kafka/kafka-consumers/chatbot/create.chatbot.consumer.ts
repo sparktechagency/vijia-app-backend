@@ -4,6 +4,13 @@ import { kafkaConsumer } from "../../kafka-producers/kafka.consumer"
 
 export const createChatbotConsumer = async () => {
     await kafkaConsumer({groupId:"chatbot",topic:"create-chatbot",cb: async (data:IChatbot)=>{
-        await Chatbot.create(data)
+        try {
+            console.log(data);
+            
+            await Chatbot.create(data)
+        } catch (error) {
+            console.log(error);
+            
+        }
     }})
 }

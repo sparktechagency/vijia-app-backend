@@ -12,6 +12,7 @@ import { amaduesHelper } from '../../../helpers/AmaduesHelper';
 import { googleHelper } from '../../../helpers/googleMapHelper';
 import { Subscription } from '../subscription/subscription.model';
 import { IPackage } from '../package/package.interface';
+import QueryBuilder from '../../builder/QueryBuilder';
 
 const createUserToDB = async (payload: Partial<IUser>): Promise<IUser> => {
   //set role
@@ -114,11 +115,33 @@ const deleteAccountFromDB = async (user: JwtPayload,password:string) => {
   return isExistUser
 };
 
+const getUserListFromDB = async (query: Record<string, any>) => {
+  const userQuery = new QueryBuilder(User.find({role:USER_ROLES.USER}), query).paginate().search(['name','email']).sort()
+
+  const [users,pagination] = await Promise.all([
+    userQuery.modelQuery.select('name email status createdAt').exec(),
+    userQuery.getPaginationInfo()
+  ])
+
+  return {
+    data:users,
+    pagination
+  }
+};
+
+
+const changeStatusOFUser = async (id:string,status:string) => {
+  const user = await User.findOneAndUpdate({ _id: id }, { $set: { status } });
+  return user
+};
+
 export const UserService = {
   createUserToDB,
   getUserProfileFromDB,
   updateProfileToDB,
-  deleteAccountFromDB
+  deleteAccountFromDB,
+  getUserListFromDB,
+  changeStatusOFUser
 };
 
 

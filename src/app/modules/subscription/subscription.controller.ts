@@ -50,7 +50,8 @@ const getSubscribers = catchAsync(async (req: Request, res: Response) => {
   const response = {
     success: true,
     message: "Subscription created successfully",
-    data: subscription,
+    data: subscription.data,
+    pagination: subscription.pagination,
     statusCode: 200,
   };
 sendResponse(res, response);

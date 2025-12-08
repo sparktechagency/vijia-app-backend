@@ -177,7 +177,7 @@ const restRes = await fetch(`https://restcountries.com/v3.1/alpha/${country?.sho
     return data;
   }
 
-  async getDistance(lat1: number, lng1: number, lat2: number, lng2: number): Promise<{km: number}> {
+  async getDistance(lat1: number, lng1: number, lat2: number, lng2: number): Promise<{km: number, text: string}> {
 try {
   console.log(lat1,lng2,lat2,lat1);
   
@@ -188,11 +188,13 @@ try {
     console.log(data?.rows?.[0].elements?.[0]);
     
     return {
-      km: data.rows?.[0].elements?.[0].distance.value
+      km: Number(((data.rows?.[0].elements?.[0].distance.value)/1000).toFixed(1)),
+      text: data.rows?.[0].elements?.[0].distance.text
     }
 } catch (error) {
   return {
-    km: 0
+    km: 0,
+    text: ''
   }
 }
   }

@@ -14,6 +14,7 @@ import { FavoriteRoutes } from '../app/modules/favorite/favorite.route';
 import { NotificationRoutes } from '../app/modules/notification/notification.routes';
 import { ChatbotRoutes } from '../app/modules/chatbot/chatbot.route';
 import { TransportRoutes } from '../app/modules/transport/transport.route';
+import { DashboardRoutes } from '../app/modules/dashboard/dashboard.route';
 const router = express.Router();
 
 const apiRoutes = [
@@ -76,6 +77,10 @@ const apiRoutes = [
   {
     path:"/transport",
     route:TransportRoutes
+  },
+  {
+    path:"/dashboard",
+    route:DashboardRoutes
   }
 ];
 

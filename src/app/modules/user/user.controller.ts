@@ -1,9 +1,10 @@
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, raw, Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import { getSingleFilePath } from '../../../shared/getFilePath';
 import sendResponse from '../../../shared/sendResponse';
 import { UserService } from './user.service';
+import ApiError from '../../../errors/ApiError';
 
 const createUser = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
@@ -69,4 +70,28 @@ const deleteAccount = catchAsync(
   }
 );
 
-export const UserController = { createUser, getUserProfile, updateProfile, deleteAccount };
+const userList = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.getUserListFromDB(req.query);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'User list fetched successfully',
+    data: result.data,
+    pagination:result.pagination
+  });
+});
+
+const changeStatus = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  if(!req.body.status){throw new ApiError(StatusCodes.BAD_REQUEST, 'Please provide status');}
+
+  const result = await UserService.changeStatusOFUser(id, req.body.status);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'User status changed successfully',
+    data: result,
+  });
+});
+
+export const UserController = { createUser, getUserProfile, updateProfile, deleteAccount, userList, changeStatus };

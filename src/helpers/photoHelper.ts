@@ -7,6 +7,8 @@ export async function getImagesFromApi(name:string):Promise<string[]> {
                 "X-Ratelimit-Limit":1000
             }
         });
+
+        
         const images = response.data.hits.map((item:any)=>item.webformatURL)
 
         

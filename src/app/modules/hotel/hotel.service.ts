@@ -15,7 +15,7 @@ import { IBookHotelBody, IDiscoverPlace, IFlighBody } from './hotel.interface';
 import { User } from '../user/user.model';
 import ApiError from '../../../errors/ApiError';
 import { StatusCodes } from 'http-status-codes';
-import { convertToFareSummary, priceFilteringHotel } from './hotel.helper';
+import { convertToFareSummary, getRoomFacilities, priceFilteringHotel } from './hotel.helper';
 import { HotelOrderResponse } from '../../../types/bookFlight';
 import { BookingRecord } from './hotel.model';
 import { INotification } from '../notification/notification.interface';
@@ -81,7 +81,7 @@ const getHotelsFromApis = async (
     const response = {
       data: await Promise.all(
         data.map(async (hotel:any) => {
-          const isExistFavorite = await Favorite.isExistFavorite(hotel.referenceId);
+          const isExistFavorite = await Favorite.isExistFavorite(hotel.referenceId,user.id);
           return {
             ...hotel,
             isFavorite: isExistFavorite ? true : false,
@@ -245,6 +245,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
   if (type == 'hotel') {
     const hotel = await amaduesHelper.getHotelsDetails([id]);
     const hotellOffer = await amaduesHelper.getHotelsOffers([id]);
+
     
     const hotelDetails = hotel?.data?.[0];
     const distance = await googleHelper.getDistance(
@@ -266,6 +267,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
     
     const price = hotellOffer?.data?.[0]?.offers?.[0]?.price?.total;
     const currency = hotellOffer?.data?.[0]?.offers?.[0]?.price?.currency;
+
     if (dbExist) {
       const data =  {
         ...dbExist,
@@ -276,6 +278,8 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
         restrudentsAmount,
         offerdetails : currentOffer?.id ? convertToFareSummary(currentOffer) : "No offer available",
         offerId: currentOffer?.id? currentOffer?.id : "No offer available",
+        roomFacilities: currentOffer?.id?getRoomFacilities(currentOffer) : "No offer available",
+        images: (hotelDetails as any)?.images ||await getImagesFromApi(hotelDetails?.name),
       };
       await RedisHelper.redisSet(`home:${id}`,query,data);
       return data;
@@ -309,6 +313,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
       restrudentsAmount,
       offerId: currentOffer?.id? currentOffer?.id : "No offer available",
       offerdetails : currentOffer?.id ? convertToFareSummary(currentOffer) : "No offer available",
+      roomFacilities: currentOffer?.id?getRoomFacilities(currentOffer) : "No offer available",
     };
 
     await User.updateIntrestOfUser(user.id, [data?.city], [data?.type]);
@@ -436,12 +441,12 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
         month: 'short',
         year: 'numeric',
       })
-      const isFavorite = await Favorite.isExistFavorite(hotel.hotelId)
+      const isFavorite = await Favorite.isExistFavorite(hotel.hotelId,user.id);
       const data = {
         type: 'hotel',
         referenceId: hotel.hotelId,
         name: hotel.name,
-        images: (hotel as any)?.pictures || ['https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg'],
+        images: (hotel as any)?.pictures|| getImagesFromApi(`${hotel.name}`) || ['https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg'],
         description: (hotel as any)?.description || `A luxurious 5-star hotel located in the heart of ${hotel.address.cityName}, offering premium rooms, fine dining, and a rooftop infinity pool.`,
         price:price || String(((Math.random() * 1000).toFixed(2))),
         currency:currency || "USD",
@@ -458,7 +463,8 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
         lat: hotel.geoCode.latitude,
         lng: hotel.geoCode.longitude,
         rating: (hotel as any)?.rating || 0,
-        isFavorite:isFavorite? true : false
+        isFavorite:isFavorite? true : false,
+        offer_id:cheapestOffer?.id||''
       }
       return data
     }))

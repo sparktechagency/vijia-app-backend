@@ -77,3 +77,13 @@ export interface IBookingRecord {
   };
   confirmationNumber: string;
 }
+
+export interface FareSummary {
+  checkIn: string;
+  checkOut: string;
+  rackRate: number;
+  offerRate: number;
+  discountText: string;
+  taxesAndFees: number;
+  totalAmount: number;
+}

@@ -135,10 +135,10 @@ const getSubscriptionByUser = async (user: JwtPayload) => {
 };
 
 const subscribedUser = async (query:Record<string,any>) => {
-  const SubscriptionQuery = new QueryBuilder(Subscription.find({status:"active"}), query).paginate().sort()
+  const SubscriptionQuery = new QueryBuilder(Subscription.find(), query).paginate().sort()
 
   const [subscriptions,pagination] = await Promise.all([
-    SubscriptionQuery.modelQuery.populate("user",'name email profile').exec(),
+    SubscriptionQuery.modelQuery.populate("user",'name email image').exec(),
     SubscriptionQuery.getPaginationInfo()
   ])
 

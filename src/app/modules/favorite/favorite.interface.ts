@@ -10,5 +10,5 @@ export type IFavorite = {
 };
 
 export type FavoriteModel = Model<IFavorite> & {
-  isExistFavorite(refId: string): Promise<IFavorite | null>;
+  isExistFavorite(refId: string,user: string): Promise<IFavorite | null>;
 }

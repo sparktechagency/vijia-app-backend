@@ -27,6 +27,8 @@ const getSingleFlightOffer = catchAsync(async (req:Request,res:Response) => {
 })
 
 const createFlightBooking = catchAsync(async (req:Request,res:Response) => {
+    console.log(req.body.userInfos[0].passport);
+    
     const flightOffer = await FlightServices.bookFlight(req.body,req.user);
     sendResponse(res, {
         success: true,

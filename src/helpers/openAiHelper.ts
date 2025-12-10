@@ -127,7 +127,8 @@ const demoObj = {
 };
 
 const createAiSuggestion = async (user: string) => {
-  console.log("AI is processing... please wait.");
+ try {
+   console.log("AI is processing... please wait.");
 
   const preference = await Preference.findOne({ user }).lean();
   if (!preference) return [];
@@ -180,6 +181,10 @@ Return ONLY JSON.
 
   console.log("AI suggestion completed.");
   return data;
+ } catch (error) {
+  console.log(error);
+  
+ }
 };
 
 

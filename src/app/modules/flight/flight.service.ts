@@ -137,14 +137,13 @@ const getFlightsListUsingGeoCode = async (
     },
   });
 
-  console.log(flightsOffer);
   
 
 
   
 
   let data = flightsOffer?.data?.map(offer =>
-     mapFlightOfferToCard(offer as any)
+     mapFlightOfferToCard(offer as any,flightsOffer?.dictionaries?.carriers)
   );
 
   if(body?.minPrice || body?.maxPrice || body?.cheapest){
@@ -275,7 +274,14 @@ await kafkaProducer.sendMessage("create-notification", {
   referenceId:bookData._id,
 } as INotification)
 
-    return bookFlight
+    return {
+      invoice_id:bookFlight.data.id,
+      payment_date:new Date().toLocaleString(),
+      payment_method:"Credit Card",
+      payment_status:"Successfull",
+      amount:offer.price.grandTotal,
+      currency:offer.price.currency
+    }
 };
 
 

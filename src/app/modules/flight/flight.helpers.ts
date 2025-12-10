@@ -1,5 +1,21 @@
 import { FlightOffer } from "../../../types/flightOffer";
 
+const AirlineNames: Record<string, string> = {
+  EK: "Emirates",
+  QR: "Qatar Airways",
+  SQ: "Singapore Airlines",
+  TK: "Turkish Airlines",
+  ET: "Ethiopian Airlines",
+  GF: "Gulf Air",
+  EY: "Etihad Airways",
+  WY: "Oman Air",
+  BA: "British Airways",
+  CX: "Cathay Pacific",
+  MH: "Malaysia Airlines",
+  BG: "Biman Bangladesh Airlines"
+};
+
+
 export type FlightCardData = {
   fromCode: string;
   toCode: string;
@@ -9,9 +25,11 @@ export type FlightCardData = {
   dateTime: string;
   flightNumber: string;
   airlineCode: string;
+  airlineName: string;
   price: number;
   offer: FlightOffer;
-  currency: string
+  currency: string,
+  totalTraveler: number
 };
 
 
@@ -30,9 +48,10 @@ function formatDateTime(dateString: string) {
   });
 }
 
-export function mapFlightOfferToCard(flight: FlightOffer): FlightCardData {
+export function mapFlightOfferToCard(flight: FlightOffer,carriers: Record<string, string>): FlightCardData {
   const firstSegment = flight.itineraries[0].segments[0];
   const lastSegment = flight.itineraries[0].segments.slice(-1)[0];
+  const totalTraveler = flight.travelerPricings.length
 
   return {
     fromCode: firstSegment.departure.iataCode,
@@ -43,9 +62,12 @@ export function mapFlightOfferToCard(flight: FlightOffer): FlightCardData {
     dateTime: formatDateTime(firstSegment.departure.at),
     flightNumber: firstSegment.carrierCode + firstSegment.number,
     airlineCode: firstSegment.carrierCode,
+    airlineName:carriers[firstSegment.carrierCode],
     price: Number(flight.price.grandTotal),
     currency: flight.price.currency,
-    offer: flight
+    totalTraveler: totalTraveler,
+    offer: flight,
+    
   };
 }
 

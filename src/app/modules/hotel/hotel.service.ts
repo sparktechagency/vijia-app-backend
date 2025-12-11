@@ -211,7 +211,7 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
     //   return cache;
     // }
   const type = query.type;
-  const dbExist = await HomeItem.findOne({ referenceId: id }).lean();
+  const dbExist = await HomeItem.findOne({ referenceId: id, user:user.id }).lean();
 
   
   
@@ -237,6 +237,8 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
       distance,
       restrudentsAmount,
     };
+
+    
     await User.updateIntrestOfUser(user.id, [dbExist?.city], [dbExist?.type]);
     await RedisHelper.redisSet(`home:${id}`, data, query);
     return data

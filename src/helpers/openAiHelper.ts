@@ -6,18 +6,25 @@ import { redisClient } from '../config/redis';
 import { RedisHelper } from '../tools/redis/redis.helper';
 
 const askAI = async (prompt: string) => {
-  const completion = await chatbot.chat.completions.create({
+try {
+    const completion = await chatbot.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: "You are a travel recommendation engine. Return only valid JSON." },
       { role: "user", content: prompt }
     ]
   });
+  console.log(completion);
+  
 
   const raw = completion.choices[0].message.content || "";
   const clean = raw.replace(/\n/g, "").replace(/```json|```/g, "").trim();
 
   return JSON.parse(clean);
+} catch (error) {
+  console.log(error);
+  
+}
 };
 
 // ------------------- Generate type-based Suggestions -------------------
@@ -189,7 +196,8 @@ Return ONLY JSON.
 
 
 const createAiSuggestionTravelDestination = async (user: string,address:{city:string,country:string}) => {
-  console.log("AI is processing... please wait.");
+ try {
+   console.log("AI is processing... please wait.");
   const userDetails = await User.findOne({ _id: user },{user_type:1,interested_categories:1,searchItems:1,intrestedPlaces:1}).lean();
   if (!userDetails) return [];
 
@@ -226,6 +234,9 @@ ${JSON.stringify(demoObj)}
 
   return data
 
+ } catch (error) {
+  
+ }
 
 };
 

@@ -399,7 +399,6 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
     const cityInfo = await googleHelper.getCountryShortAndLongName(query.lat,query.lng);
  
 
-    console.log(cityInfo);
     
     const airPortInfo = await amaduesHelper.getAirportBycity(cityInfo?.country?.short_name);
     
@@ -446,7 +445,7 @@ const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload)
         type: 'hotel',
         referenceId: hotel.hotelId,
         name: hotel.name,
-        images: (hotel as any)?.pictures|| getImagesFromApi(`${hotel.name}`) || ['https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg'],
+        images: (hotel as any)?.pictures||await getImagesFromApi(`${hotel.name}`) || ['https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg'],
         description: (hotel as any)?.description || `A luxurious 5-star hotel located in the heart of ${hotel.address.cityName}, offering premium rooms, fine dining, and a rooftop infinity pool.`,
         price:price || String(((Math.random() * 1000).toFixed(2))),
         currency:currency || "USD",

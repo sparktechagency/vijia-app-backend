@@ -1,4 +1,4 @@
 export type IErrorMessage = {
-  path: string | number;
+  path: PropertyKey ;
   message: string;
 };

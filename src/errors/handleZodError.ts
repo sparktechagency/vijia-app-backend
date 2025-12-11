@@ -2,13 +2,17 @@ import { ZodError } from 'zod';
 import { IErrorMessage } from '../types/errors.types';
 
 const handleZodError = (error: ZodError) => {
-  console.log(error.errors);
-  const errorMessages: IErrorMessage[] = error.errors.map(el => {
+
+  
+
+  const errorMessages: IErrorMessage[] = error.issues.map(el => {
     return {
       path: el.path[el.path.length - 1],
       message: el.message,
     };
   });
+
+  
 
   const statusCode = 400;
   return {

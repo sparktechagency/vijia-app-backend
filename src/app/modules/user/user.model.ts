@@ -142,24 +142,24 @@ userSchema.statics.isMatchPassword = async (
 };
 
 userSchema.statics.updateIntrestOfUser = async (userId: string, places?:string[], searchItems?:string[],) => {
-  const userDetails = await User.findOne({ _id: userId });
-  if (!userDetails) return [];
-  if(userDetails.intrestedPlaces?.includes(places?.[0]!)) return []
-  const user = await User.findOneAndUpdate(
-    { _id: userId },
-    { $addToSet: { intrestedPlaces: places, searchItems: searchItems } },
-    { new: true }
-  );
-  const cityName = await googleHelper.getCountryShortAndLongName(
-        user?.location?.coordinates?.[1]!,
-        user?.location?.coordinates?.[0]!
-      );
+  // const userDetails = await User.findOne({ _id: userId });
+  // if (!userDetails) return [];
+  // if(userDetails.intrestedPlaces?.includes(places?.[0]!)) return []
+  // const user = await User.findOneAndUpdate(
+  //   { _id: userId },
+  //   { $addToSet: { intrestedPlaces: places, searchItems: searchItems } },
+  //   { new: true }
+  // );
+  // const cityName = await googleHelper.getCountryShortAndLongName(
+  //       user?.location?.coordinates?.[1]!,
+  //       user?.location?.coordinates?.[0]!
+  //     );
   
-      await kafkaProducer.sendMessage('hotel-in-preference', {
-        userId: user?._id,
-        userAddress: { city: cityName.city, country: cityName.country },
-      });
-  return user
+  //     await kafkaProducer.sendMessage('hotel-in-preference', {
+  //       userId: user?._id,
+  //       userAddress: { city: cityName.city, country: cityName.country },
+  //     });
+  // return user
   
 }
 

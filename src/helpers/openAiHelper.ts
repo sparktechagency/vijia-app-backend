@@ -23,6 +23,7 @@ try {
   return JSON.parse(clean);
 } catch (error) {
   console.log(error);
+  return [];
   
 }
 };
@@ -235,6 +236,7 @@ ${JSON.stringify(demoObj)}
   return data
 
  } catch (error) {
+  console.log(error);
   
  }
 

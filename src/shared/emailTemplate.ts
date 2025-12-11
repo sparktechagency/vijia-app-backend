@@ -13,7 +13,7 @@ const createAccount = (values: ICreateAccount) => {
           <!-- Logo -->
           <tr>
             <td style="padding-bottom:20px;">
-              <img src="https://res.cloudinary.com/dkbcx9amc/image/upload/v1764853157/Group_2_hclirw.png" alt="Viajia Logo" width="120" style="display:block; margin:0 auto 10px auto;">
+              <img src="https://res.cloudinary.com/dkbcx9amc/image/upload/v1765456072/Frame_2147229948_frafl2.png" alt="Viajia Logo" width="120" style="display:block; margin:0 auto 10px auto;">
             </td>
           </tr>
 
@@ -87,7 +87,7 @@ const resetPassword = (values: IResetPassword) => {
           <!-- Logo -->
           <tr>
             <td style="padding-bottom:20px;">
-              <img src="https://res.cloudinary.com/dkbcx9amc/image/upload/v1764853157/Group_2_hclirw.png" alt="Viajia Logo" width="120" style="display:block; margin:0 auto 10px auto;">
+              <img src="https://res.cloudinary.com/dkbcx9amc/image/upload/v1765456072/Frame_2147229948_frafl2.png" alt="Viajia Logo" width="120" style="display:block; margin:0 auto 10px auto;">
             </td>
           </tr>
 

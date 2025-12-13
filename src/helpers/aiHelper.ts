@@ -1,126 +1,141 @@
+import { encode } from '@toon-format/toon';
+import { AddressType, getaddressFromTheAi } from '../app/modules/chatbot/chatbot.constants';
 import { IPreference, tags } from '../app/modules/preference/preference.interface';
-import { Preference } from '../app/modules/preference/preference.model';
+import { HomeItem, Preference } from '../app/modules/preference/preference.model';
 import { User } from '../app/modules/user/user.model';
-import { chatbot } from '../config/chatbot.config';
+import config from '../config';
 import { redisClient } from '../config/redis';
 import { RedisHelper } from '../tools/redis/redis.helper';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { chatbot } from '../config/chatbot.config';
+
+/* ------------------------------------------------------------------ */
+/* Gemini Configuration                                               */
+/* ------------------------------------------------------------------ */
+
+const geminiModel = chatbot
+
+/* ------------------------------------------------------------------ */
+/* AI Helper                                                          */
+/* ------------------------------------------------------------------ */
+
+const askAI = async (prompt: string) => {
+  try {
+    const result = await geminiModel.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `
+You are a system that MUST return only valid JSON.
+Do not add explanations, markdown, or extra text.
+
+${prompt}
+              `,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+      },
+    });
+
+    const raw = result.response.text();
+
+    const clean = raw
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    return JSON.parse(clean);
+  } catch (error) {
+    console.error('Gemini AI error:', error);
+    return [];
+  }
+};
+
+
+/* ------------------------------------------------------------------ */
+/* Generate Type-based Suggestions                                    */
+/* ------------------------------------------------------------------ */
 
 const getSuggestions = async (
   data: any,
   userAddress: { city: string; country: string },
-  type: 'flight' | 'hotel' | 'activity' | 'restrudent',
+  type: 'flight' | 'hotel' | 'activity' | 'restaurant',
   userId: string
 ) => {
   try {
     const prompt = await genPrompt(data, type, userAddress, userId);
-
-    const response = await chatbot.generateContent(prompt!);
-
-    const res = response?.response
-      ?.text()
-      ?.replace(/\n/g, '')
-      ?.replace(/```json|```/g, '')
-      .trim();
-
-    return JSON.parse(res);
+    return await askAI(prompt);
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 
+/* ------------------------------------------------------------------ */
+/* Prompt Generator                                                   */
+/* ------------------------------------------------------------------ */
+
 const genPrompt = async (
   data: any,
-  type: 'flight' | 'hotel' | 'activity' | 'restrudent',
+  type: 'flight' | 'hotel' | 'activity' | 'restaurant',
   userAddress: { city: string; country: string },
   userId: string
 ) => {
   const userInfo = await User.findOne(
     { _id: userId },
     { user_type: 1, interested_categories: 1 }
-  );
+  ).lean();
+
+  const base = `
+User Profile:
+- Type: ${userInfo?.user_type || 'none'}
+- Interests: ${userInfo?.interested_categories?.join(', ') || 'none'}
+- Location: ${userAddress.city}, ${userAddress.country}
+`;
+
   switch (type) {
     case 'flight':
-      return `The user has the following profile:
-- User type: ${userInfo?.user_type || 'none'}
-- Interested categories: ${userInfo?.interested_categories?.join(',') || 'none'}
-- Location: ${userAddress.city}, ${userAddress.country}
+      return `${base}
+Available Flights: ${JSON.stringify(data)}
+Suggest best flights.
+Return JSON only.`;
 
-Here is the available flights data: ${JSON.stringify(data)}
-
-Please analyze the flights and suggest the best options for this user, considering:
-1. Best fit for the user's profile and preferences.
-2. Affordable or cheapest available options.
-
-Return only the recommended flights in the same JSON structure as the input flights list.
-            `;
     case 'hotel':
-      return `
-        The user has the following profile:
-- User type: ${userInfo?.user_type || 'none'}
-- Interested categories: ${userInfo?.interested_categories?.join(',') || 'none'}
-- Location: ${userAddress.city}, ${userAddress.country}
+      return `${base}
+Available Hotels: ${JSON.stringify(data)}
+Suggest best hotels considering price and amenities.
+Return JSON only.`;
 
-Here is the available hotels data: ${JSON.stringify(data)}
-
-Please analyze the hotels and suggest the best options for this user, considering:
-1. Best fit for the user's profile and preferences.
-2. Affordable or cheapest available options.
-3. Relevant amenities and features based on the user's interests.
-
-Return only the recommended hotels in the same JSON structure as the input hotels list no other text only json.
-        `;
-      break;
     case 'activity':
-      return `
-        The user has the following profile:
-- User type: ${userInfo?.user_type || 'none'}
-- Interested categories: ${userInfo?.interested_categories?.join(',') || 'none'}
-- Location: ${userAddress.city}, ${userAddress.country}
+      return `${base}
+Available Activities: ${JSON.stringify(data)}
+Suggest best activities.
+Return JSON only.`;
 
-Here is the available activities data: ${JSON.stringify(data)}
+    case 'restaurant':
+      return `${base}
+Available Restaurants: ${JSON.stringify(data)}
+Suggest best restaurants.
+Return JSON only.`;
 
-Please analyze the activities and suggest the best options for this user, considering:
-1. Best fit for the user's profile and interests.
-2. Activities that are popular, relevant, or highly rated.
-3. Cost-effective options if applicable.
-
-Return only the recommended activities in the same JSON structure as the input activities list.
-
-        `;
-      break;
-    case 'restrudent':
-      return `
-        The user has the following profile:
-- User type: ${userInfo?.user_type || 'none'}
-- Interested categories: ${userInfo?.interested_categories?.join(',') || 'none'}
-- Location: ${userAddress.city}, ${userAddress.country}
-
-Here is the available restaurants data: ${JSON.stringify(data)}
-
-Please analyze the restaurants and suggest the best options for this user, considering:
-1. Best fit for the user's profile and preferences.
-2. Popular or highly rated restaurants.
-3. Affordable or cost-effective options if applicable.
-4. Cuisine or features relevant to the user's interests.
-
-Return only the recommended restaurants in the same JSON structure as the input restaurants list.
-
-        `;
-      break;
     default:
-      break;
+      return '';
   }
 };
+
+/* ------------------------------------------------------------------ */
+/* City Info Generator                                                */
+/* ------------------------------------------------------------------ */
 
 const sampleForm = {
   city: 'PAR',
   country: 'FR',
-  suggestCountrys: [
-    {
-      city: 'PAR',
-      country: 'FR',
-    },
-  ],
+  suggestCountrys: [{ city: 'PAR', country: 'FR' }],
 };
 
 const getCityInfo = async (
@@ -128,143 +143,227 @@ const getCityInfo = async (
   country: string
 ): Promise<typeof sampleForm> => {
   try {
-    const promt = `
-The user has the following profile:
-- Location: ${city}, ${country}
+    const prompt = `
+Return JSON only in this structure:
+${JSON.stringify(sampleForm)}
 
-Please provide:
-1. The IATA code for the given city and country.
-2. A list of suggested tourist-friendly countries with at least one city and its corresponding IATA code.
+Do not return null or empty values.
+If unknown, use New York defaults.
 
-Return the result only in JSON format, following this structure: ${JSON.stringify(
-      sampleForm
-    )} and dont give any value null or empty string or undefined if not available use new york as default
+User Location: ${city}, ${country}
 `;
 
-    const response = await chatbot.generateContent(promt);
-
-    const res = response?.response
-      ?.text()
-      ?.replace(/\n/g, '')
-      ?.replace(/```json|```/g, '')
-      .trim();
-
-    return JSON.parse(res);
-  } catch (error) {
-    console.log(error);
-    return {
-      city: 'PAR',
-      country: 'FR',
-      suggestCountrys: [
-        {
-          city: 'PAR',
-          country: 'FR',
-        },
-      ],
-    };
+    return await askAI(prompt);
+  } catch {
+    return sampleForm;
   }
 };
 
+/* ------------------------------------------------------------------ */
+/* AI Home Page Suggestions                                           */
+/* ------------------------------------------------------------------ */
 
 export const demoObj = {
-  "type": "hotel",
-  "name": "The Grand Dhaka Hotel",
-  "referenceId": "hotel id or flight id or activity id or resturant id",
-  "images": [
-    "https://example.com/images/hotel1.jpg",
-    "https://example.com/images/hotel1-room.jpg",
-    "https://example.com/images/hotel1-lobby.jpg"
-  ],
-  "description": "A luxurious 5-star hotel located in the heart of Dhaka, offering premium rooms, fine dining, and a rooftop infinity pool.",
-  "price": "150",
-  "isDiscounted": true,
-  "discountPercentage": 10,
-  "discountAmount": 15,
-  "tags": "Alomost exhausted",
-  "bookingLink": "https://example.com/book/the-grand-dhaka-hotel",
-  "startDate": "2025-11-10",
-  "endDate": "2025-11-15",
-  "country": "Bangladesh",
-  "city": "Dhaka",
-  "lat": 23.8103,
-  "lng": 90.4125
-}
-
-
-const createAiSuggestion = async (user:string) => {
-    console.log("Ai is proecceeing now. please be patient");
-    
-    const preference = await Preference.findOne({user}).lean()
-
-    if(!preference) return []
-
-  const userDetails = await User.findOne({ _id: preference.user })
-    .select('user_type interested_categories')
-    .lean();
-    if(!userDetails) return []
-
-  const userAddress = {
-    city: preference.city,
-    country: preference.country,
-  };
-
-  const userInfo = {
-    user_type: userDetails.user_type,
-    interested_categories: userDetails.interested_categories,
-  };
-
-  const prompt = `
-  this is the user profile:
-
-  - User type: ${userInfo?.user_type || 'none'}
-  - Interested categories: ${userInfo?.interested_categories?.join(',') || 'none'}
-  - Location: ${userAddress.city}, ${userAddress.country}
-  - here is hotel list ${JSON.stringify(preference.hotels)}
-  - here is flight list ${JSON.stringify(preference.flights)}
-  - here is activity list ${JSON.stringify(preference.activities)}
-  - flight default image url : https://wallpaperbat.com/img/563899-flight-wallpaper.jpg
-  - hotel default image url : https://eaglematinsurance.co.uk/wp-content/uploads/2024/08/Leisure-and-Hospitality-Insurance.jpg
-
-  please analyze the data and suggest the best options for this user, considering:
-  1. Best fit for the user's profile and preferences.
-  2. Affordable or cheapest available options.
-  3. Relevant amenities and features based on the user's interests.
-  4. Popular or highly rated options.
-  5.give tags as ${JSON.stringify(tags)} based on the user's preferences
-  6.convert all of data to in one json format
-  7.the json format is ${JSON.stringify(demoObj)}.
-  8. if any flight or hotel or activity image is not available then use default image url. 
-  9. for the activites use all of images of the activity. and dont give any demo book link. is there no booking link just use empty string. but you can use demo start date and end date and use country and city fullname
-  10. Suffle the data and dont give in a sequential order
-
-  
-
-
-  Return only the recommended data in the ${JSON.stringify(demoObj)} format and dont give any value null and only return the json format
-  `
-
-  const response = await chatbot.generateContent(prompt!);
-  
-  
-  const res = response?.response
-    ?.text()
-    ?.replace(/\n/g, '')
-    ?.replace(/```json|```/g, '')
-    .trim();
-
-  const data =JSON.parse(res);
-
-  await Preference.updateOne({user},{aiPreferences:data})
-  console.log("Ai is done now. please check your preference");
-
-  await redisClient.del(`preference:${user}`)
-  return data
+  type: 'travel',
+  name: '',
+  referenceId: '',
+  images: [],
+  description: '',
+  price: 0,
+  currency: '',
+  isDiscounted: false,
+  discountPercentage: 0,
+  discountAmount: 0,
+  tags: '',
+  bookingLink: '',
+  startDate: '',
+  endDate: '',
+  country: '',
+  city: '',
+  lat: 0,
+  lng: 0,
 };
 
+const createAiSuggestion = async (user: string) => {
+  try {
+    console.log('AI is processing... please wait.');
+
+    const preference = await Preference.findOne({ user }).lean();
+    if (!preference) return [];
+
+    const userDetails = await User.findOne(
+      { _id: preference.user },
+      { user_type: 1, interested_categories: 1 }
+    ).lean();
+    if (!userDetails) return [];
+
+    const userAddress = {
+      city: preference.city,
+      country: preference.country,
+    };
+
+    const prompt = `
+User:
+- Type: ${userDetails.user_type}
+- Interests: ${userDetails.interested_categories}
+- Location: ${userAddress.city}, ${userAddress.country}
+
+Data:
+- Hotels: ${JSON.stringify(preference.hotels)}
+- Flights: ${JSON.stringify(preference.flights)}
+- Activities: ${JSON.stringify(preference.activities)}
+
+Instructions:
+1. Choose best recommendations based on user preferences.
+2. Match user interests.
+3. Use tags only from: ${JSON.stringify(tags)}
+4. Convert every item into this structure:
+${JSON.stringify(demoObj)}
+5. Shuffle the output.
+6. No null values.
+7. Missing booking link → empty string.
+8. If description missing, generate one.
+9. If dates missing, use near future dates.
+10. Assume price if missing.
+
+Return ONLY JSON.
+`;
+
+    const data = await askAI(prompt);
+
+    await Preference.updateOne({ user }, { aiPreferences: data });
+    await HomeItem.insertMany(data.map((item: any) => ({ ...item, user })));
+    await RedisHelper.keyDelete(`preference:${user}`);
+
+    console.log('AI suggestion completed.');
+    return data;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Travel Destination Suggestions                                     */
+/* ------------------------------------------------------------------ */
+
+const createAiSuggestionTravelDestination = async (
+  user: string,
+  address: { city: string; country: string }
+) => {
+  try {
+    console.log('AI is processing... please wait.');
+
+    const userDetails = await User.findOne(
+      { _id: user },
+      {
+        user_type: 1,
+        interested_categories: 1,
+        searchItems: 1,
+        intrestedPlaces: 1,
+      }
+    ).lean();
+
+    if (!userDetails) return [];
+
+    const prompt = `
+User type: ${userDetails.user_type}
+Interests: ${userDetails.interested_categories?.join(', ')}
+
+Current Location: ${address.city}, ${address.country}
+
+Search history:
+${JSON.stringify(userDetails.searchItems)}
+
+Interested places:
+${JSON.stringify(userDetails.intrestedPlaces)}
+
+Task:
+Suggest travel destinations that match the user's interests and are easy to travel to.
+
+Rules:
+- Return ONLY JSON
+- Minimum 30 unique recommendations
+- No images
+- Use tags from ${JSON.stringify(tags)}
+- Provide long descriptions
+- Assume price, duration, start and end dates
+- Use valid latitude and longitude
+- No null values
+
+Output structure:
+${JSON.stringify(demoObj)}
+`;
+
+    return await askAI(prompt);
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+/* ------------------------------------------------------------------ */
+/* Export                                                             */
+/* ------------------------------------------------------------------ */
+
+
+
+const getJsonOfChatBot = async (
+  prompt: string,
+  countyAndTheCity: string,
+  excitingMMessage: string,
+  fileId?: string
+) => {
+  try {
+    const finalPrompt = getaddressFromTheAi(
+      `${prompt || fileId} and my current location is ${encode(
+        countyAndTheCity
+      )} and my previous messages are ${encode(excitingMMessage)}`
+    );
+
+    const result = await geminiModel.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text: `
+You are a travel recommendation engine.
+Return ONLY valid JSON.
+Do not include markdown or extra text.
+
+${finalPrompt}
+              `,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.3,
+      },
+    });
+
+    const raw = result.response.text();
+
+    const clean = raw
+      .replace(/```json/gi, '')
+      .replace(/```/g, '')
+      .trim();
+
+    const json: AddressType = JSON.parse(clean);
+
+    return json;
+  } catch (error) {
+    console.error('Gemini AI error:', error);
+    throw error;
+  }
+};
 
 
 export const AiHelper = {
   getSuggestions,
   getCityInfo,
-  createAiSuggestion
+  createAiSuggestion,
+  createAiSuggestionTravelDestination,
+  getJsonOfChatBot
 };

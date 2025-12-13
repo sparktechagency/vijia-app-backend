@@ -1,3 +1,5 @@
+import { encode } from '@toon-format/toon';
+import { AddressType, getaddressFromTheAi } from '../app/modules/chatbot/chatbot.constants';
 import { IPreference, tags } from '../app/modules/preference/preference.interface';
 import { HomeItem, Preference } from '../app/modules/preference/preference.model';
 import { User } from '../app/modules/user/user.model';
@@ -242,9 +244,46 @@ ${JSON.stringify(demoObj)}
 
 };
 
+const getJsonOfChatBot = async (prompt:string,countyAndTheCity:string,excitingMMessage:string,fileId?:string)=>{
+    const response = await chatbot.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a travel recommendation engine. Return only valid JSON.',
+      },
+      {
+        role: 'user',
+        content: getaddressFromTheAi(
+          `${prompt || fileId} and my current location is ${encode(
+            countyAndTheCity
+          )} and my previous messages are ${encode(excitingMMessage)}`
+        ),
+      },
+    ],
+  });
+
+  const data = response.choices[0].message.content;
+  // const information:AddressType = JSON.parse(data!);
+
+  const jsonFormat = data
+    ?.replace(/\n/g, '')
+    .replace(/```json|```/g, '')
+    .trim();
+
+
+  const json: AddressType = JSON.parse(jsonFormat!);
+
+  return json
+}
+
 export const AiHelper = {
   getSuggestions,
   getCityInfo,
   createAiSuggestion,
-  createAiSuggestionTravelDestination
+  createAiSuggestionTravelDestination,
+  getJsonOfChatBot
 };
+
+

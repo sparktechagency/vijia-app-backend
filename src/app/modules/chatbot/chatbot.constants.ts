@@ -61,12 +61,12 @@ const demoAddress = {
     children: 0,
     flightClass: "ECONOMY",
     addintional_requirements: "None",
-    responseItems:["flight","hotel","activity","resturant"],
+    responseItems:["flight","hotel","activity","restaurant"],
     data :{
         flight: [],
         hotel: [],
         activity: [],
-        resturant: []
+        restaurant: []
     },
     message: "Hello, I'm Valeria, your travel assistant. I'm here to help you plan your perfect trip. Let's get started!",
 }

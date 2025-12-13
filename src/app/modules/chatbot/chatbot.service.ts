@@ -20,6 +20,7 @@ import QueryBuilder from '../../builder/QueryBuilder';
 import { amaduesHelper } from '../../../helpers/AmaduesHelper';
 import { convertHotelIntoHomeItem } from './chatbot.helper';
 import { openAiFileUpload } from '../../../helpers/openAIUpload';
+import { AiHelper } from '../../../helpers/aiHelper';
 const generateAiResponse = async (
   user: JwtPayload,
   prompt?: string,
@@ -40,6 +41,8 @@ const generateAiResponse = async (
     .exec();
   const countyAndTheCity =
     await googleHelper.getCountryAndCityDetailsUsingGeoCode(lat, lng);
+ 
+  
   await kafkaProducer.sendMessage('create-chatbot', {
     user: user.id,
     message: prompt || fileId,
@@ -51,36 +54,13 @@ const generateAiResponse = async (
     sender: 'user',
     user: user.id,
   });
-  const response = await chatbot.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content:
-          'You are a travel recommendation engine. Return only valid JSON.',
-      },
-      {
-        role: 'user',
-        content: getaddressFromTheAi(
-          `${prompt || fileId} and my current location is ${encode(
-            countyAndTheCity
-          )} and my previous messages are ${encode(excitingMMessage)}`
-        ),
-      },
-    ],
-  });
 
-  const data = response.choices[0].message.content;
-  // const information:AddressType = JSON.parse(data!);
-
-  const jsonFormat = data
-    ?.replace(/\n/g, '')
-    .replace(/```json|```/g, '')
-    .trim();
-
-  console.log(jsonFormat);
-
-  const json: AddressType = JSON.parse(jsonFormat!);
+  const json = await AiHelper.getJsonOfChatBot(
+    prompt || fileId!,
+    countyAndTheCity,
+    excitingMMessage as any,
+    fileId!
+  );
 
   if (Object.values(json.data ?? {}).some(data => data.length > 0)) {
     const data = {

@@ -173,6 +173,7 @@ GLOBAL RULES
 - STRICT RULE: Do NOT generate unrealistic, impossible, or imaginary data.
 - For cheapest/luxury queries → **always check previous data first** and return exactly the same JSON if found.
 - When responding from previous data → **do not modify any fields**, including offers, prices, availability.
+- When responding from previous data → place all data in **demoAddress.data**.
 - If destination is unreachable → provide guidance in message field only, do NOT generate itinerary.
 - Only generate itinerary once destination is reachable or user confirms alternate plan.
 

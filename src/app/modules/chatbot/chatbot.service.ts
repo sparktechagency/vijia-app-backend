@@ -30,6 +30,8 @@ const generateAiResponse = async (
   const fileId = await openAiFileUpload(audio!);
 
   const userInfo = await User.findOne({ _id: user.id });
+
+  
   const [lng, lat] = userInfo?.location?.coordinates || [116.4074, 39.9046];
   const excitingMMessage = await Chatbot.find({
     user: user.id,
@@ -42,6 +44,7 @@ const generateAiResponse = async (
   const countyAndTheCity =
     await googleHelper.getCountryAndCityDetailsUsingGeoCode(lat, lng);
  
+  
   
   await kafkaProducer.sendMessage('create-chatbot', {
     user: user.id,
@@ -90,7 +93,7 @@ const generateAiResponse = async (
       user: user.id,
       message: json.message,
       sender: 'ai',
-      data: [],
+      data: {},
     });
     return {
       message: json.message,
@@ -181,7 +184,7 @@ const generateAiResponse = async (
     user: user.id,
     data: responsek.data,
   });
-  console.log('come');
+
 
   await kafkaProducer.sendMessage('create-chatbot', {
     user: user.id,

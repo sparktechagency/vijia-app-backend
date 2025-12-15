@@ -344,7 +344,8 @@ ${finalPrompt}
     });
 
     const raw = result.response.text();
-
+    console.log(raw);
+    
     const clean = raw
       .replace(/```json/gi, '')
       .replace(/```/g, '')

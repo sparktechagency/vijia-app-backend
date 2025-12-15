@@ -51,8 +51,6 @@ export const addHotelsInPreference = async () => {
       //     kafkaProducer.sendMessage('activity-in-preference', { userId,userAddress:cityInfo }),
       //   ])
       try {
-
-      } catch (error) {
         const data: IHomeItem[] = await AiHelper.createAiSuggestionTravelDestination(userId, { city: userAddress.city, country: userAddress.country });
 
         const mapItems = await Promise.all(
@@ -72,6 +70,9 @@ export const addHotelsInPreference = async () => {
 
 
         await HomeItem.insertMany(mapItems)
+      } catch (error) {
+        console.log(error);
+        
       }
 
 

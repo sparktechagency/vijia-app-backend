@@ -32,10 +32,10 @@ const getHotelsFromApis = async (
 
   const cache = await RedisHelper.redisGet(`preference:${user.id}`, query);
   
-  if (cache) {
-    console.log('from cache');
-    return cache;
-  }
+  // if (cache) {
+  //   console.log('from cache');
+  //   return cache;
+  // }
 
   const [lng,lat] = (await User.findOne({ _id: user.id }))?.location?.coordinates ||[]
 

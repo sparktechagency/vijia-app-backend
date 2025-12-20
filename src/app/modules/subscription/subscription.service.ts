@@ -127,11 +127,17 @@ const demoSubscriptionForTest = async (packageId:string,user:JwtPayload)=>{
 
 
 const getSubscriptionByUser = async (user: JwtPayload) => {
-  const subscription = await Subscription.findOne({ user: user.id,status:"active" });
+  const subscription = await Subscription.findOne({ user: user.id,status:"active" }).populate("package");
   if (!subscription) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Subscription doesn't exist!");
+    return {
+      message: "No active subscription found",
+      data: null,
+    }
   }
-  return subscription;
+  return {
+    message: "Active subscription found",
+    data: subscription
+  };
 };
 
 const subscribedUser = async (query:Record<string,any>) => {

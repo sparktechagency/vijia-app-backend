@@ -29,39 +29,60 @@ const getHotelsFromApis = async (
   query: Record<string, any>,
   user: JwtPayload
 ) => {
+  const cacheKey = `preference:${user.id}`;
 
-  const cache = await RedisHelper.redisGet(`preference:${user.id}`, query);
-  
-  // if (cache) {
-  //   console.log('from cache');
-  //   return cache;
-  // }
-
-  const [lng,lat] = (await User.findOne({ _id: user.id }))?.location?.coordinates ||[]
-
-  const matchLatlong = calculateDistance(lat,lng,Number(query.lat),Number(query.lng)) > 1000
-  if((!lng || !lat) ||matchLatlong ){
-      await User.findOneAndUpdate(
-        { _id: user.id },
-        {location: {type: 'Point', coordinates: [query.lng, query.lat]}}
-    )
+  const cache = await RedisHelper.redisGet(cacheKey, query);
+  if (cache) {
+    console.log("from cache");
+    return cache;
   }
-    
-  const hotelItems = await HomeItem.findOne({ user: user.id });
 
+  /* ---------------- User Location ---------------- */
+  const userData = await User.findById(user.id).lean();
+  const [lng, lat] = userData?.location?.coordinates || [];
 
-  if (!hotelItems?.name || matchLatlong) {
+  const queryLat = Number(query.lat);
+  const queryLng = Number(query.lng);
+
+  let isLocationChanged = false;
+
+  if (
+    !lat ||
+    !lng ||
+    calculateDistance(lat, lng, queryLat, queryLng) > 1000
+  ) {
+    isLocationChanged = true;
+
+    await User.updateOne(
+      { _id: user.id },
+      {
+        location: {
+          type: "Point",
+          coordinates: [queryLng, queryLat],
+        },
+      }
+    );
+  }
+
+  /* ---------------- Preference Items ---------------- */
+  const hotelItems = await HomeItem.findOne({ user: user.id }).lean();
+
+  if (!hotelItems?.name || isLocationChanged) {
     const cityName = await googleHelper.getCountryShortAndLongName(
-      query.lat,
-      query.lng
+      queryLat,
+      queryLng
     );
 
-    await kafkaProducer.sendMessage('hotel-in-preference', {
+    await kafkaProducer.sendMessage("hotel-in-preference", {
       userId: user.id,
-      userAddress: { city: cityName.city, country: cityName.country },
+      userAddress: {
+        city: cityName?.city?.long_name,
+        country: cityName?.country?.long_name,
+      },
     });
   }
 
+  /* ---------------- User Preference Hotels ---------------- */
   if (hotelItems?.name) {
     const preferenceQuery = new QueryBuilder(
       HomeItem.find({ user: user.id }),
@@ -69,82 +90,87 @@ const getHotelsFromApis = async (
     )
       .paginate()
       .sort()
-      .filter(['lat', 'lng'])
-      .search(['name', 'city', 'country', 'description']);
-    let [data, pagination] = await Promise.all([
+      .filter(["lat", "lng"])
+      .search(["name", "city", "country", "description"]);
+
+    const [hotels, pagination] = await Promise.all([
       preferenceQuery.modelQuery.lean(),
       preferenceQuery.getPaginationInfo(),
     ]);
 
+    // Batch favorite lookup
+    const referenceIds = hotels.map((h:any) => h.referenceId);
+    const favorites = await Favorite.find({
+      user: user.id,
+      referenceId: { $in: referenceIds },
+    }).lean();
 
+    const favoriteSet = new Set(
+      favorites.map(f => f.referenceId.toString())
+    );
 
     const response = {
-      data: await Promise.all(
-        data.map(async (hotel:any) => {
-          const isExistFavorite = await Favorite.isExistFavorite(hotel.referenceId,user.id);
-          return {
-            ...hotel,
-            isFavorite: isExistFavorite ? true : false,
-          };
-        })
-      ),
+      data: hotels.map((hotel:any) => ({
+        ...hotel,
+        isFavorite: favoriteSet.has(hotel.referenceId.toString()),
+      })),
       pagination,
     };
 
-    await RedisHelper.redisSet(`preference:${user.id}`, response, query);
+    await RedisHelper.redisSet(cacheKey, response, query, 60);
     return response;
   }
 
-  const [ activites] = await Promise.all([
-    amaduesHelper.getAactivtiesUsingGeoCode(query.lat, query.lng),
-  ]);
+  /* ---------------- Amadeus Activities ---------------- */
+  const activitiesRes =
+    await amaduesHelper.getAactivtiesUsingGeoCode(queryLat, queryLng);
 
-
-
-  const formatted_activies = activites?.data
-    ?.slice(0, 20)
-    ?.map(async activity => {
+  const formattedActivities = await Promise.all(
+    (activitiesRes?.data || []).slice(0, 20).map(async activity => {
       const address = await googleHelper.getCountryShortAndLongName(
         activity.geoCode.latitude,
         activity.geoCode.longitude
       );
+
       return {
-        type: 'activity',
+        type: "activity",
         referenceId: activity.id,
         name: activity.name,
-        images: activity.pictures,
+        images: activity.pictures || [],
         description: activity.description,
-        price: Number(activity.price.amount),
-        currency: activity.price.currencyCode,
+        price: Number(activity.price?.amount || 0),
+        currency: activity.price?.currencyCode,
         isDiscounted: false,
         discountPercentage: 0,
         discountAmount: 0,
         tags: tags[Math.floor(Math.random() * tags.length)],
-        bookingLink: '',
-        startDate: new Date().toISOString().split('T')[0],
-        // 7 days from now
+        bookingLink: "",
+        startDate: new Date().toISOString().split("T")[0],
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
           .toISOString()
-          .split('T')[0],
+          .split("T")[0],
         country: address?.country?.long_name,
         city: address?.city?.long_name,
         lat: activity.geoCode.latitude,
         lng: activity.geoCode.longitude,
-        isFavorite: false
+        isFavorite: false,
       };
-    });
+    })
+  );
 
-  const formatted_activites = await Promise.all(formatted_activies);
+  const paginatedResponse = paginationHelper.paginateArray(
+    formattedActivities,
+    query,
+    {
+      searchTerm: query.searchTerm,
+      fields: ["name", "city", "country", "description"],
+    }
+  );
 
-
-  const paginateArray = paginationHelper.paginateArray(formatted_activites, query, {
-    searchTerm: query.searchTerm,
-    fields: ['name', 'city', 'country', 'description'],
-  });
-
-  await RedisHelper.redisSet(`preference:${user.id}`, paginateArray, query);
-  return paginateArray;
+  await RedisHelper.redisSet(cacheKey, paginatedResponse, query, 3600);
+  return paginatedResponse;
 };
+
 
 const getActiviesForHome = async (
   user: JwtPayload,
@@ -205,11 +231,11 @@ const getActiviesForHome = async (
 };
 
 const singleHomeDetails = async (id: string, query: Record<string, any>,user:JwtPayload) => {
-    // const cache = await RedisHelper.redisGet(`home:${id}`, query);
-    // if (cache) {
-    //   console.log('Cache hit');
-    //   return cache;
-    // }
+    const cache = await RedisHelper.redisGet(`home:${id}`, query);
+    if (cache) {
+      console.log('Cache hit');
+      return cache;
+    }
   const type = query.type;
   const dbExist = await HomeItem.findOne({ referenceId: id, user:user.id }).lean();
 
@@ -385,108 +411,155 @@ const singleHomeDetails = async (id: string, query: Record<string, any>,user:Jwt
 };
 
 
-const getHotelsListFromApis = async (query: Record<string, any>,user:JwtPayload) => {
-  const cache = await RedisHelper.redisGet(`hotels`, query);
+const getHotelsListFromApis = async (
+  query: Record<string, any>,
+  user: JwtPayload
+) => {
+  const cacheKey = `hotels:${query.lat || query.address || "default"}`;
+
+  const cache = await RedisHelper.redisGet(cacheKey, query);
   if (cache) {
-    console.log('Cache hit');
+    console.log("Cache hit");
     return cache;
   }
-      if(query?.address){
-          const latLong = await googleHelper.getLatLongFromAddress(query.address as string);
-          if(latLong.lat && latLong.lng){
-              query.lat = latLong.lat
-              query.lng = latLong.lng
-          }
-      }
-    const cityInfo = await googleHelper.getCountryShortAndLongName(query.lat,query.lng);
- 
 
-    
-    const airPortInfo = await amaduesHelper.getAirportBycity(cityInfo?.country?.short_name);
-    
-    let cityName = airPortInfo?.data?.[0]?.iataCode
-
-    if(!cityName){
-      const airPortInfo = await amaduesHelper.getAirportBycity(cityInfo?.city?.short_name);
-      cityName = airPortInfo?.data?.[0]?.iataCode
-      if(!cityName){
-        const airPortInfo = await amaduesHelper.getAirportBycity(cityInfo?.capital);
-        cityName = airPortInfo?.data?.[0]?.iataCode
-      }
-      else{
-        cityName = 'NYC'
-      }
+  /* ---------------- Resolve Lat/Lng ---------------- */
+  if (query.address && (!query.lat || !query.lng)) {
+    const latLong = await googleHelper.getLatLongFromAddress(
+      query.address as string
+    );
+    if (latLong?.lat && latLong?.lng) {
+      query.lat = latLong.lat;
+      query.lng = latLong.lng;
     }
+  }
 
-    
+  if (!query.lat || !query.lng) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Latitude and Longitude are required"
+    );
+  }
 
-    const getHotelsList = await amaduesHelper.getHotelsList(cityName,query?.radius || 100,query?.rating || 4);
+  /* ---------------- Location Info ---------------- */
+  const cityInfo = await googleHelper.getCountryShortAndLongName(
+    query.lat,
+    query.lng
+  );
 
-    await User.updateIntrestOfUser(user.id, [getHotelsList?.data?.[0]?.address?.cityName], ['hotel']);
-    
-    const paginatieArray = paginationHelper.paginateArray(getHotelsList?.data, query);
+  let cityCode: string | undefined;
 
-    const datak = (paginatieArray.data) as any as typeof getHotelsList["data"]
-    let mapData = await Promise.all(datak.map(async (hotel) => {
-      const offer = await amaduesHelper.getHotelsOffers([hotel.hotelId]);
-      const cheapestOffer = offer?.data?.[0]?.offers?.sort((a: any, b: any) => a?.price?.total - b?.price?.total)[0];
-      const price = cheapestOffer?.price?.total;
-      const currency = cheapestOffer?.price?.currency;
-      const checkIn = new Date(cheapestOffer?.checkInDate || Date.now()).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-      const checkOut = new Date(cheapestOffer?.checkOutDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) ).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
-      const isFavorite = await Favorite.isExistFavorite(hotel.hotelId,user.id);
-      const data = {
-        type: 'hotel',
+  const tryAirport = async (name?: string) => {
+    if (!name) return;
+    const res = await amaduesHelper.getAirportBycity(name);
+    return res?.data?.[0]?.iataCode;
+  };
+
+  cityCode =
+    (await tryAirport(cityInfo?.city?.short_name)) ||
+    (await tryAirport(cityInfo?.capital)) ||
+    (await tryAirport(cityInfo?.country?.short_name)) ||
+    "NYC";
+
+  /* ---------------- Hotel List ---------------- */
+  const hotelsRes = await amaduesHelper.getHotelsList(
+    cityCode,
+    Number(query.radius) || 100,
+    Number(query.rating) || 4
+  );
+
+  const hotels = hotelsRes?.data || [];
+
+  if (hotels.length) {
+    await User.updateIntrestOfUser(
+      user.id,
+      [hotels[0]?.address?.cityName],
+      ["hotel"]
+    );
+  }
+
+  const paginated = paginationHelper.paginateArray(hotels, query);
+  const paginatedHotels = paginated.data as typeof hotels;
+
+  /* ---------------- Map Hotels ---------------- */
+  let mapData = await Promise.all(
+    paginatedHotels.map(async hotel => {
+      const offerRes = await amaduesHelper.getHotelsOffers([hotel.hotelId]);
+      const offers = offerRes?.data?.[0]?.offers || [];
+
+      const cheapestOffer = offers.sort(
+        (a: any, b: any) =>
+          Number(a?.price?.total || Infinity) -
+          Number(b?.price?.total || Infinity)
+      )[0];
+
+      const price = Number(cheapestOffer?.price?.total || 0);
+      const currency = cheapestOffer?.price?.currency || "USD";
+
+      const checkIn = cheapestOffer?.checkInDate
+        ? new Date(cheapestOffer.checkInDate)
+        : new Date();
+
+      const checkOut = cheapestOffer?.checkOutDate
+        ? new Date(cheapestOffer.checkOutDate)
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      const isFavorite = await Favorite.isExistFavorite(
+        hotel.hotelId,
+        user.id
+      );
+
+      return {
+        type: "hotel",
         referenceId: hotel.hotelId,
         name: hotel.name,
-        images: (hotel as any)?.pictures||await getImagesFromApi(`${hotel.name}`) || ['https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg'],
-        description: (hotel as any)?.description || `A luxurious 5-star hotel located in the heart of ${hotel.address.cityName}, offering premium rooms, fine dining, and a rooftop infinity pool.`,
-        price:price || String(((Math.random() * 1000).toFixed(2))),
-        currency:currency || "USD",
+        images:
+          (hotel as any)?.pictures ||
+          (await getImagesFromApi(hotel.name)) || [
+            "https://files.sitebuilder.name.tools/3e/c9/3ec93012-63c2-4211-9dc7-3ee806d09db6.jpeg",
+          ],
+        description:
+          (hotel as any)?.description ||
+          `A luxury hotel in ${hotel.address.cityName}.`,
+        price,
+        currency,
         isDiscounted: false,
         discountPercentage: 0,
         discountAmount: 0,
         tags: tags[Math.floor(Math.random() * tags.length)],
-        bookingLink: '',
-        startDate: checkIn || new Date().toISOString().split('T')[0],
-        // 7 days from now
-        endDate: checkOut || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        bookingLink: "",
+        startDate: checkIn.toISOString().split("T")[0],
+        endDate: checkOut.toISOString().split("T")[0],
         country: hotel.address.countryCode,
         city: hotel.address.cityName,
         lat: hotel.geoCode.latitude,
         lng: hotel.geoCode.longitude,
         rating: (hotel as any)?.rating || 0,
-        isFavorite:isFavorite? true : false,
-        offer_id:cheapestOffer?.id||''
-      }
-      return data
-    }))
+        isFavorite: Boolean(isFavorite),
+        offer_id: cheapestOffer?.id || "",
+      };
+    })
+  );
 
-    if(query?.minPrice || query?.maxPrice|| query?.cheapest){
-      mapData = priceFilteringHotel(mapData as any,query.minPrice,query.maxPrice) as any
-    }
-    
-  const data = {
+  /* ---------------- Price Filter ---------------- */
+  if (query.minPrice || query.maxPrice || query.cheapest) {
+    mapData = priceFilteringHotel(
+      mapData as any,
+      query.minPrice,
+      query.maxPrice
+    ) as any;
+  }
+
+  const response = {
     data: mapData,
-    pagination: paginatieArray.pagination
-  }
+    pagination: paginated.pagination,
+  };
 
-  if(query.address){
-    delete query.lat
-    delete query.lng
-  }
+  /* ---------------- Cache ---------------- */
+  await RedisHelper.redisSet(cacheKey, response, query, 300);
+  return response;
+};
 
-  await RedisHelper.redisSet(`hotels`,data,query,60);
-  return data
-}
 
 const bookHotelIntoApis = async (data:IBookHotelBody,user:JwtPayload)=>{
   const geustList:HotelOrderResponse["data"]["guests"] = data.guests.map((guest,index)=>{

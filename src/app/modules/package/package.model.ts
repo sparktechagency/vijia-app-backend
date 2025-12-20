@@ -10,6 +10,10 @@ const packageSchema = new mongoose.Schema<IPackage,PackageModel>({
         type: Number,
         required: true
     },
+    perfect_for: {
+        type: String,
+        required: true
+    },
     features: {
         type: [String],
         required: true

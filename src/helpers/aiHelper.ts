@@ -316,9 +316,7 @@ const getJsonOfChatBot = async (
 ) => {
   try {
     const finalPrompt = getaddressFromTheAi(
-      `${prompt || fileId} and my current location is ${encode(
-        countyAndTheCity
-      )} and my previous messages are ${encode(excitingMMessage)}`
+      `${prompt || fileId}  and my previous messages are ${encode(excitingMMessage)}`
     );
 
     const result = await geminiModel.generateContent({
@@ -360,11 +358,79 @@ ${finalPrompt}
   }
 };
 
+const getIternatiesByBudgetAndAnddays = async (iternitys:{flights:any[],hotels:any[],activities:any[],restaurants:any[]},budget:number,startDate?:string,endDate?:string) => {
+  try {
+  const prompt = `
+Here are the itineraries:
+${JSON.stringify(iternitys)}
+
+Budget: ${budget}
+Start date: ${startDate}
+End date: ${endDate}
+
+Task:
+Create a combination of itineraries based on the given budget and total number of days.
+
+Rules:
+- Do NOT change the data format or structure.
+- Select only from the provided itineraries.
+- Ensure the total cost fits within the budget.
+- Ensure the plan fits within the date range.
+- No null values.
+- only single items per category if available.
+Output:
+- Return ONLY valid JSON.
+- Do NOT include markdown, explanations, or extra text.
+
+Required JSON format:
+{
+  filghts: preferenceFlight[],
+  hotels: preferenceHotel[],
+  activities: preferenceActivity[],
+  restaurants: preferenceRestaurant[]
+}
+`;
+
+const result = await geminiModel.generateContent({
+  contents: [
+    {
+      role: 'user',
+      parts: [
+        {
+          text: prompt,
+        },
+      ],
+    },
+  ],
+  generationConfig: {
+    temperature: 0.3,
+  },
+});
+
+const raw = result.response.text();
+const clean = raw
+  .replace(/```json/gi, '')
+  .replace(/```/g, '')
+  .trim();
+
+const json = JSON.parse(clean);
+return json as {
+  flights: any[];
+  hotels: any[];
+  activities: any[];
+  restaurants: any[];
+}
+  } catch (error) {
+    
+  }
+};
+
 
 export const AiHelper = {
   getSuggestions,
   getCityInfo,
   createAiSuggestion,
   createAiSuggestionTravelDestination,
-  getJsonOfChatBot
+  getJsonOfChatBot,
+  getIternatiesByBudgetAndAnddays
 };

@@ -2,13 +2,13 @@ import { z } from "zod";
 
 const createPackageZodSchema = z.object({
     body: z.object({
-        name: z.string({ required_error: 'Name is required' }),
-        price: z.number({ required_error: 'Price is required' }),
-        perfect_for: z.string({ required_error: 'Perfect for is required' }),
-        features: z.array(z.string({ required_error: 'Feature is required' })),
-        paymentId: z.string({ required_error: 'Payment ID is required' }),
-        referenceId: z.string({ required_error: 'Reference ID is required' }),
-        recurring: z.enum(['monthly', 'yearly'], { required_error: 'Recurring is required' }),
+        name: z.string({ error: 'Name is required' }),
+        price: z.number({ error: 'Price is required' }),
+        perfect_for: z.string({ error: 'Perfect for is required' }),
+        features: z.array(z.string({ error: 'Feature is required' })),
+        paymentId: z.string({ error: 'Payment ID is required' }),
+        referenceId: z.string({ error: 'Reference ID is required' }),
+        recurring: z.enum(['monthly', 'yearly'], { error: 'Recurring is required' }),
     }),
 })
 

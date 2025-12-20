@@ -15,160 +15,185 @@ import QueryBuilder from '../../builder/QueryBuilder';
 import { kafkaProducer } from '../../../tools/kafka/kafka-producers/kafka.producer';
 import { INotification } from '../notification/notification.interface';
 
+
+export async function getAitaAddress(address: string) {
+  const latlang = await googleHelper.getLatLongFromAddress(address);
+      const cityInfo = await googleHelper.getCountryShortAndLongName(
+    latlang.lat,
+    latlang.lng
+  );
+  let cityCode: string | undefined;
+
+  const tryAirport = async (name?: string) => {
+    if (!name) return;
+    const res = await amaduesHelper.getAirportBycity(name);
+    return res?.data?.[0]?.iataCode;
+  };
+
+  cityCode =
+    (await tryAirport(cityInfo?.city?.short_name)) ||
+    (await tryAirport(cityInfo?.capital)) ||
+    (await tryAirport(cityInfo?.country?.short_name)) ||
+    "NYC";
+
+  return cityCode;
+}
+
+
 const getFlightsListUsingGeoCode = async (
   body: IFlighBody,
   user: JwtPayload
 ) => {
+  const cacheKey = `flights:${user.id}`;
 
-
-  const cache = await RedisHelper.redisGet(`flights:${user?.id}`, body);
+  const cache = await RedisHelper.redisGet(cacheKey, body);
   if (cache) {
-    console.log('Cache hit');
+    console.log("Cache hit");
     return cache;
   }
-  const userDetails = await User.findOne({ _id: user.id }).lean();
-  if (!userDetails) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
+
+  const userDetails = await User.findById(user.id).lean();
+  if (!userDetails?.location?.coordinates?.length) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "User location not found!");
   }
-  const [lng, lat] = userDetails?.location?.coordinates || [];
-  const currency = await googleHelper.getCurrencyFromLatLong(lat, lng);
 
-  
-  const formattedAdults = new Array(body?.adults || 1)
-    .fill({})
-    .map((_, index) => ({
-      id: String(index + 1),
-      travelerType: 'ADULT',
-      fareOptions: ['STANDARD'],
-    }));
+  const latLong = await googleHelper.getLatLongFromAddress(
+    body.place[0].origin
+  )
+  const currency =
+    (await googleHelper.getCurrencyFromLatLong(latLong.lat, latLong.lng))?.currencyCode ||
+    "USD";
 
-  const formattedChildren = new Array(body?.children || 0)
-    .fill({})
-    .map((_, index) => ({
-      id: String(body?.adults + index + 1),
-      travelerType: 'CHILD',
-      fareOptions: ['STANDARD'],
-    }));
-
-  const travelers = [...formattedAdults, ...formattedChildren];
-
-  const promiseData = await Promise.all(
-     body.place.map(async (place, index) => {
-    const [originCode, destinationCode] = await Promise.all([
-      amaduesHelper.getAirportBycity(place.origin),
-      amaduesHelper.getAirportBycity(place.destination),
-    ]);
-
-    
-
-
-    
-
-      const originDestinations = [
-    {
-      id: String(index + 1),
-      originLocationCode: originCode?.data?.[index]?.iataCode || body?.place?.[index]?.originAitaCode||'',
-      destinationLocationCode: destinationCode?.data?.[index]?.iataCode || body?.place?.[index]?.destinationAitaCode||'',
-      departureDateTimeRange: {
-        date: new Date(place.departureDate).toISOString().split('T')[0],
-        time: new Date(place.departureDate)
-          .toISOString()
-          .split('T')[1]
-          .split('.')[0],
-      },
-    },
-    ...(place?.returnDate
-      ? [
-          {
-            id: String(index + 2),
-            originLocationCode: destinationCode?.data?.[index]?.iataCode || body?.place?.[index]?.destinationAitaCode||'',
-            destinationLocationCode: originCode?.data?.[index]?.iataCode || body?.place?.[index]?.originAitaCode||'',
-            departureDateTimeRange: {
-              date: new Date(place.returnDate).toISOString().split('T')[0],
-              time: new Date(place.returnDate)
-                .toISOString()
-                .split('T')[1]
-                ?.split('.')[0],
-            },
-          },
-        ]
-      : []),
+  /* ---------------- Travelers ---------------- */
+  const travelers = [
+    ...Array.from({ length: body.adults || 1 }).map((_, i) => ({
+      id: String(i + 1),
+      travelerType: "ADULT",
+      fareOptions: ["STANDARD"],
+    })),
+    ...Array.from({ length: body.children || 0 }).map((_, i) => ({
+      id: String((body.adults || 1) + i + 1),
+      travelerType: "CHILD",
+      fareOptions: ["STANDARD"],
+    })),
   ];
 
-    return originDestinations
-  })
-  )
+  /* ---------------- Origin Destinations ---------------- */
+
+  let originDestinationId = 1;
+  const originDestinations = (
+    await Promise.all(
+      body.place.map(async place => {
+        const [originRes, destinationRes] = await Promise.all([
+          getAitaAddress(place.origin),
+          getAitaAddress(place.destination),
+        ]);
 
 
+        const originCode =
+          originRes ||
+          place.originAitaCode ||
+          "";
 
-  
+        const destinationCode =
+          destinationRes ||
+          place.destinationAitaCode ||
+          "";
 
+        const segments: any[] = [];
 
-
-  const flightsOffer = await amaduesHelper.getFlightsListPost({
-    currencyCode: currency?.currencyCode || 'USD',
-    originDestinations: promiseData.flat(),
-    travelers: travelers as any,
-    sources: ['GDS'],
-    searchCriteria: {
-      maxFlightOffers: body?.limit || 10,
-      flightFilters: {
-        cabinRestrictions: [
-          {
-            cabin: body.class,
-            coverage: 'ALL_SEGMENTS',
-            originDestinationIds: ['1'],
+        // One way
+        segments.push({
+          id: String(originDestinationId++),
+          originLocationCode: originCode,
+          destinationLocationCode: destinationCode,
+          departureDateTimeRange: {
+            date: new Date(place.departureDate)
+              .toISOString()
+              .split("T")[0],
           },
-          //@ts-ignore
-          ...(body?.returnDate
-            ? [
-                {
-                  cabin: body.class,
-                  coverage: 'ALL_SEGMENTS',
-                  originDestinationIds: ['2'],
-                },
-              ]
-            : []),
-        ],
+        });
+
+        // Return
+        if (place.returnDate) {
+          segments.push({
+            id: String(originDestinationId++),
+            originLocationCode: destinationCode,
+            destinationLocationCode: originCode,
+            departureDateTimeRange: {
+              date: new Date(place.returnDate)
+                .toISOString()
+                .split("T")[0],
+            },
+          });
+        }
+
+        return segments;
+      })
+    )
+  ).flat();
+
+  /* ---------------- Amadeus Search ---------------- */
+  const flightsOffer = await amaduesHelper.getFlightsListPost({
+    currencyCode: currency,
+    originDestinations,
+    travelers: travelers as any,
+    sources: ["GDS"],
+    searchCriteria: {
+      maxFlightOffers: body.limit || 10,
+      flightFilters: {
+        cabinRestrictions: originDestinations.map(od => ({
+          cabin: body.class,
+          coverage: "ALL_SEGMENTS",
+          originDestinationIds: [od.id],
+        })),
         carrierRestrictions: {
-          excludedCarrierCodes: ['AA', 'TP', 'AZ'],
+          excludedCarrierCodes: ["AA", "TP", "AZ"],
         },
       },
     },
   });
 
-  
+  let data =
+    flightsOffer?.data?.map(offer =>
+      mapFlightOfferToCard(
+        offer as any,
+        flightsOffer?.dictionaries?.carriers
+      )
+    ) || [];
 
+  /* ---------------- Filters ---------------- */
+  if (body.cheapest || body.minPrice || body.maxPrice) {
+    const min = body.cheapest ? 0 : body.minPrice;
+    const max = body.cheapest ? 1000 : body.maxPrice;
+    data = cheapestFlights(data, min, max);
+  }
 
-  
+  if (body.earliest || body.shedule) {
+    if (body.earliest) {
+      const now = new Date();
+      const start = now.getHours() + 1;
+      const end = start + 2;
+      body.shedule = `${start}-${end}${start >= 12 ? "PM" : "AM"}`;
+    }
 
-  let data = flightsOffer?.data?.map(offer =>
-     mapFlightOfferToCard(offer as any,flightsOffer?.dictionaries?.carriers)
+    const { start, end } = convertTime(body.shedule!);
+    data = closeTimeFlights(data, start, end);
+  }
+
+  if (body.fastest) {
+    data = fastestFlights(data);
+  }
+
+  /* ---------------- Cache + Analytics ---------------- */
+  await RedisHelper.redisSet(cacheKey, data, body, 60);
+
+  await User.updateIntrestOfUser(
+    user.id,
+    body.place.map(p => p.origin),
+    ["flights"]
   );
 
-  if(body?.minPrice || body?.maxPrice || body?.cheapest){
-    if(body?.cheapest){
-      body.minPrice = 0
-      body.maxPrice = 1000
-    }
-    data= cheapestFlights(data,body?.minPrice,body?.maxPrice)
-  }
-
-  if(body?.shedule || body?.earliest){
-    if(body?.earliest){
-      body.shedule = `${new Date().getHours()+1}-${new Date().getHours()>=12 ? new Date().getHours()+3 : new Date().getHours()}${+(new Date().toTimeString().split(' ')[0].split(':')[0]) > 12 ? 'PM' : 'AM'}`
-      
-    }
-    const {start,end} = convertTime(body?.shedule!)
-    
-    data = closeTimeFlights(data,start,end)
-    
-  }
-  if(body?.fastest){
-    data = fastestFlights(data)
-  }
-  await RedisHelper.redisSet(`flights:${user.id}`, data, body, 3600);
-  await User.updateIntrestOfUser(user.id, body.place.map((place: any) => place.origin), ["flights"]);
   return data;
 };
 

@@ -35,3 +35,48 @@ export const convertHotelIntoHomeItem = async (hotelData:HotelsResponse['data'])
 
 return await Promise.all(homeItems)
 }
+
+export function fixAiGeneratedJson(jsonString: string): string {
+  let fixed = jsonString.trim();
+
+  // Step 1: Remove trailing commas (common LLM mistake: , } or , ])
+  fixed = fixed.replace(/,\s*}/g, '}');
+  fixed = fixed.replace(/,\s*]/g, ']');
+
+  // Step 2: Add missing commas between consecutive objects in arrays
+  // Handles patterns like: [ {...} {...} ] → [ {...}, {...} ]
+  // Repeated passes to handle nested structures
+  let prev: string;
+  do {
+    prev = fixed;
+    fixed = fixed.replace(/(\})\s*(\{)/g, '$1,$2'); // } { → }, {
+    fixed = fixed.replace(/(\])\s*(\[)/g, '$1,$2'); // ] [ → ], [
+  } while (prev !== fixed);
+
+  // Step 3: Add missing commas between array elements (objects or primitives)
+  // Handles cases like {...}{...} inside arrays
+  fixed = fixed.replace(/(\[\s*)(\{[^}{]*\})\s*(\{)/g, '$1$2,$3');
+
+  // Step 4: Fix missing commas in object properties: "key":value "nextKey":...
+  fixed = fixed.replace(/([^,\]}\s])(?=\s*"[\w-]+"\s*:)/g, '$1,');
+
+  // Step 5: Clean up any double commas just in case
+  fixed = fixed.replace(/,,+/g, ',');
+
+  return fixed;
+}
+
+export function safeParseAiJson<T = any>(jsonString: string): T | null {
+  try {
+    return JSON.parse(jsonString);
+  } catch (e) {
+    try {
+      const fixed = fixAiGeneratedJson(jsonString);
+      return JSON.parse(fixed);
+    } catch (e2) {
+      console.error("JSON fix failed:", e2);
+      console.log("Attempted fix:", fixAiGeneratedJson(jsonString));
+      return null;
+    }
+  }
+}

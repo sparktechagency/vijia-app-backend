@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const createCategorySchema = z.object({
     body: z.object({
-        name: z.string({ required_error: 'Name is required' }),
+        name: z.string({ error: 'Name is required' }),
     })
 })
 
@@ -14,8 +14,8 @@ const updateCategorySchema = z.object({
 
 const createUserTypeSchema = z.object({
   body: z.object({
-    name: z.string({ required_error: 'Name is required' }),
-    icon: z.any({ required_error: 'Icon is required' }),
+    name: z.string({ error: 'Name is required' }),
+    icon: z.any(),
   }),
 })
 

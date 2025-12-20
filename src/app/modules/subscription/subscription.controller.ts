@@ -38,8 +38,8 @@ const getSubscription = catchAsync(async (req: Request, res: Response) => {
   const subscription = await SubscriptionService.getSubscriptionByUser(req.user);
   const response = {
     success: true,
-    message: "Subscription created successfully",
-    data: subscription,
+    message: subscription.message,
+    data: subscription.data,
     statusCode: 200,
   };
 sendResponse(res, response);

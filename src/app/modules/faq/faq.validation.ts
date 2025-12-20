@@ -4,9 +4,9 @@ import { z } from 'zod';
 
 const createFaqZodSchema = z.object({
     body: z.object({
-        question: z.string({ required_error: 'Question is required' }),
-        answer: z.string({ required_error: 'Answer is required' }),
-        type: z.enum(['overview', 'flight', 'hotel'], { required_error: 'Type is required' }),
+        question: z.string({ error: 'Question is required' }),
+        answer: z.string({ error: 'Answer is required' }),
+        type: z.enum(['overview', 'flight', 'hotel'], { error: 'Type is required' }),
     }),
 });
 

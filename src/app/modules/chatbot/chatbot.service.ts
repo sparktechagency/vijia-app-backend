@@ -20,7 +20,7 @@ import QueryBuilder from '../../builder/QueryBuilder';
 import { amaduesHelper } from '../../../helpers/AmaduesHelper';
 import { convertHotelIntoHomeItem } from './chatbot.helper';
 import { openAiFileUpload } from '../../../helpers/openAIUpload';
-import { AiHelper } from '../../../helpers/aiHelper';
+import { AiHelper } from '../../../helpers/openAiHelper';
 const generateAiResponse = async (
   user: JwtPayload,
   prompt?: string,
@@ -129,7 +129,7 @@ const generateAiResponse = async (
         adults: json.adults,
         children: json.children,
         class: (json.flightClass as CabinRestriction['cabin']) || 'BUSINESS',
-        limit: 4,
+        limit: 4
       },
       user
     );
@@ -168,7 +168,7 @@ const generateAiResponse = async (
     lengthData.activities,
     lengthData.restaurants,
   ]);
-  const responsek = {
+  let responsek = {
     message: json.message,
     data: {
       flights,
@@ -177,6 +177,12 @@ const generateAiResponse = async (
       restaurants: (restaurants as any)?.restrudents,
     },
   };
+
+  
+
+  // if(json.budget){
+  //   responsek.data = await AiHelper.getIternatiesByBudgetAndAnddays(responsek.data,json.budget, json.startDate, json.endDate) as any
+  // }
 
   io.emit('get-chatbot::' + user.id, {
     message: responsek.message,
